@@ -2,7 +2,7 @@ const Appointment = require('../models/Appointment');
 const Patient = require('../models/Patient');
 const Doctor = require('../models/Doctor');
 const CallLog = require('../models/CallLog');
-const vapiService = require('../services/vapiService');
+const FollowUp = require('../models/FollowUp');
 const logger = require('../utils/logger');
 
 // @desc    Get all appointments
@@ -10,22 +10,22 @@ const logger = require('../utils/logger');
 // @access  Private
 exports.getAppointments = async (req, res, next) => {
   try {
-    const { 
-      patient, 
-      doctor, 
-      status, 
-      dateFrom, 
+    const {
+      patient,
+      doctor,
+      status,
+      dateFrom,
       dateTo,
-      page = 1, 
-      limit = 10 
+      page = 1,
+      limit = 10
     } = req.query;
 
     const query = {};
-    
+
     if (patient) query.patient = patient;
     if (doctor) query.doctor = doctor;
     if (status) query.status = status;
-    
+
     if (dateFrom || dateTo) {
       query.appointmentDate = {};
       if (dateFrom) query.appointmentDate.$gte = new Date(dateFrom);
@@ -43,14 +43,19 @@ exports.getAppointments = async (req, res, next) => {
       .limit(parseInt(limit));
 
     const total = await Appointment.countDocuments(query);
+    const pages = Math.ceil(total / limit);
 
     res.status(200).json({
       success: true,
-      count: appointments.length,
-      total,
-      pages: Math.ceil(total / limit),
-      currentPage: parseInt(page),
-      data: { appointments }
+      data: {
+        appointments,
+        pagination: {
+          total,
+          pages,
+          page: parseInt(page),
+          limit: parseInt(limit)
+        }
+      }
     });
   } catch (error) {
     next(error);
@@ -103,29 +108,46 @@ exports.createAppointment = async (req, res, next) => {
       });
     }
 
-    // Check if doctor is available
+    // Check if doctor is available on the selected day
     const dayOfWeek = new Date(appointmentDate).getDay();
-    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayName = days[dayOfWeek];
-    
-    if (!doctorDoc.availability[dayName].isAvailable) {
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = dayNames[dayOfWeek];
+
+    // Check if doctor has any availability for this day
+    const daySlots = doctorDoc.availability.filter(slot => slot.dayOfWeek === dayName);
+
+    if (daySlots.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Doctor is not available on this day'
+        message: `Doctor is not available on ${dayName}`
+      });
+    }
+
+    // Optionally: Check if the appointment time falls within available slots
+    const isTimeAvailable = daySlots.some(slot => {
+      return appointmentTime >= slot.startTime && appointmentTime <= slot.endTime;
+    });
+
+    if (!isTimeAvailable) {
+      return res.status(400).json({
+        success: false,
+        message: `Doctor is not available at ${appointmentTime} on ${dayName}. Available slots: ${daySlots.map(s => `${s.startTime}-${s.endTime}`).join(', ')}`
       });
     }
 
     // Create appointment
     const appointment = await Appointment.create(req.body);
-    
+
     await appointment.populate('patient doctor');
 
     logger.info('Appointment created', { appointmentId: appointment._id });
-    logger.audit('APPOINTMENT_CREATED', req.user.email, { 
-      appointmentId: appointment._id,
-      patientName: patientDoc.name,
-      doctorName: doctorDoc.name
-    });
+    if (req.user) {
+      logger.audit('APPOINTMENT_CREATED', req.user.email, {
+        appointmentId: appointment._id,
+        patientName: patientDoc.name,
+        doctorName: doctorDoc.name
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -156,9 +178,11 @@ exports.updateAppointment = async (req, res, next) => {
     }
 
     logger.info('Appointment updated', { appointmentId: appointment._id });
-    logger.audit('APPOINTMENT_UPDATED', req.user.email, { 
-      appointmentId: appointment._id
-    });
+    if (req.user) {
+      logger.audit('APPOINTMENT_UPDATED', req.user.email, {
+        appointmentId: appointment._id
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -192,10 +216,12 @@ exports.cancelAppointment = async (req, res, next) => {
     await appointment.save();
 
     logger.info('Appointment cancelled', { appointmentId: appointment._id });
-    logger.audit('APPOINTMENT_CANCELLED', req.user.email, { 
-      appointmentId: appointment._id,
-      reason: cancellationReason
-    });
+    if (req.user) {
+      logger.audit('APPOINTMENT_CANCELLED', req.user.email, {
+        appointmentId: appointment._id,
+        reason: cancellationReason
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -249,14 +275,16 @@ exports.rescheduleAppointment = async (req, res, next) => {
 
     await newAppointment.populate('patient doctor');
 
-    logger.info('Appointment rescheduled', { 
-      oldId: oldAppointment._id, 
-      newId: newAppointment._id 
-    });
-    logger.audit('APPOINTMENT_RESCHEDULED', req.user.email, { 
+    logger.info('Appointment rescheduled', {
       oldId: oldAppointment._id,
       newId: newAppointment._id
     });
+    if (req.user) {
+      logger.audit('APPOINTMENT_RESCHEDULED', req.user.email, {
+        oldId: oldAppointment._id,
+        newId: newAppointment._id
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -284,25 +312,42 @@ exports.initiateAppointmentCall = async (req, res, next) => {
       });
     }
 
-    // Initiate Vapi call
-    const vapiCall = await vapiService.makeAppointmentCall(
+    // Validate patient phone number
+    if (!appointment.patient.phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Patient phone number is missing'
+      });
+    }
+
+    // Determine which service to use
+    // Use Twilio for calling
+    const twilioService = require('../services/twilioService');
+
+    if (!twilioService.isConfigured()) {
+      return res.status(500).json({
+        success: false,
+        message: 'Twilio is not configured',
+        suggestion: 'Please add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER to your .env file.'
+      });
+    }
+
+    logger.info('Initiating Twilio call', { appointmentId: appointment._id });
+
+    const callData = await twilioService.makeAppointmentCall(
       appointment.patient,
       appointment
     );
 
     // Create call log
     const callLog = await CallLog.create({
-      callId: vapiCall.id,
+      callId: callData.id,
       patient: appointment.patient._id,
       appointment: appointment._id,
       callType: 'appointment-confirmation',
       status: 'initiated',
       language: appointment.patient.language,
-      aiProvider: 'vapi',
-      vapiData: {
-        assistantId: vapiCall.assistantId,
-        callData: vapiCall
-      }
+      aiProvider: 'twilio'
     });
 
     // Update appointment
@@ -311,22 +356,27 @@ exports.initiateAppointmentCall = async (req, res, next) => {
     appointment.lastCallDate = new Date();
     await appointment.save();
 
-    logger.info('AI call initiated', { 
+    logger.info('Twilio call initiated successfully', {
       appointmentId: appointment._id,
-      callId: vapiCall.id 
+      callId: callData.id
     });
 
     res.status(200).json({
       success: true,
-      message: 'AI call initiated successfully',
+      message: 'Call initiated successfully',
       data: {
         callLog,
-        vapiCall
+        call: callData
       }
     });
   } catch (error) {
     logger.error('Error initiating call', error);
-    next(error);
+
+    res.status(error.status || 500).json({
+      success: false,
+      message: error.message || 'Failed to initiate call',
+      error: error.details || error.message
+    });
   }
 };
 
@@ -336,7 +386,7 @@ exports.initiateAppointmentCall = async (req, res, next) => {
 exports.getAppointmentStats = async (req, res, next) => {
   try {
     const total = await Appointment.countDocuments();
-    
+
     const byStatus = await Appointment.aggregate([
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
@@ -367,6 +417,65 @@ exports.getAppointmentStats = async (req, res, next) => {
       }
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Complete appointment and create follow-up
+// @route   POST /api/appointments/:id/complete
+// @access  Private
+exports.completeAppointment = async (req, res, next) => {
+  try {
+    const { notes, report, followUpRequired, followUpDate, followUpPurpose } = req.body;
+
+    const appointment = await Appointment.findById(req.params.id)
+      .populate('patient')
+      .populate('doctor');
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+
+    appointment.status = 'completed';
+    appointment.notes = notes || appointment.notes;
+    // Store report in notes
+    if (report) {
+      appointment.notes = (appointment.notes || '') + '\n\nDOCTOR REPORT:\n' + report;
+    }
+    await appointment.save();
+
+    // Update patient status and follow-up details
+    if (appointment.patient) {
+      const updateData = { status: 'completed' };
+
+      if (followUpRequired) {
+        updateData.nextFollowUp = followUpDate || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+        updateData.latestFollowUpDetails = {
+          doctorReport: report,
+          purpose: followUpPurpose || 'Post-visit check-up',
+          scheduledDate: updateData.nextFollowUp,
+          doctor: appointment.doctor._id
+        };
+      }
+
+      await Patient.findByIdAndUpdate(appointment.patient._id, updateData);
+    }
+
+    logger.info('Appointment marked as completed', { appointmentId: appointment._id });
+
+    res.status(200).json({
+      success: true,
+      message: 'Appointment completed successfully',
+      data: {
+        appointment,
+        followUp
+      }
+    });
+  } catch (error) {
+    logger.error('Error completing appointment', error);
     next(error);
   }
 };

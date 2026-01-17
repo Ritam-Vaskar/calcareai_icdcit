@@ -59,7 +59,7 @@ app.use('/api/doctors', require('./routes/doctorRoutes'));
 app.use('/api/appointments', require('./routes/appointmentRoutes'));
 app.use('/api/calls', require('./routes/callLogRoutes'));
 app.use('/api/followups', require('./routes/followUpRoutes'));
-app.use('/api/webhooks', require('./routes/webhookRoutes'));
+app.use('/api/webhooks/twilio', require('./routes/twilioWebhookRoutes'));
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -99,19 +99,33 @@ const server = app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`🌐 API: http://localhost:${PORT}`);
   console.log(`📊 Health: http://localhost:${PORT}/health`);
-  
+
   // Initialize cron jobs
   if (process.env.NODE_ENV !== 'test') {
     cronService.init();
     logger.info('🕐 Cron jobs initialized');
   }
+
+  // Setup WebSocket server for Twilio Media Streams
+  const WebSocket = require('ws');
+  const mediaStreamHandler = require('./services/mediaStreamHandler');
+
+  const wss = new WebSocket.Server({ server, path: '/media-stream' });
+
+  wss.on('connection', (ws) => {
+    logger.info('WebSocket connection established for media stream');
+    mediaStreamHandler.handleConnection(ws);
+  });
+
+  logger.info('✅ WebSocket server ready for media streams');
+  console.log('✅ WebSocket ready at: ws://localhost:' + PORT + '/media-stream');
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   logger.error('Unhandled Rejection', err);
   console.error('❌ Unhandled Rejection:', err);
-  
+
   // Close server & exit
   server.close(() => {
     process.exit(1);
@@ -122,9 +136,9 @@ process.on('unhandledRejection', (err) => {
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully');
   console.log('👋 SIGTERM received, shutting down gracefully');
-  
+
   cronService.stop();
-  
+
   server.close(() => {
     logger.info('Process terminated');
     console.log('✅ Process terminated');

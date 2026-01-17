@@ -25,7 +25,8 @@ const appointmentSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['consultation', 'follow-up', 'emergency', 'routine-checkup', 'surgery'],
+    enum: ['consultation', 'follow-up', 'emergency', 'routine-checkup', 'surgery', 'Consultation', 'Follow-up', 'Emergency', 'Routine-checkup', 'Surgery'],
+    lowercase: true,
     default: 'consultation'
   },
   status: {
@@ -89,11 +90,11 @@ appointmentSchema.index({ appointmentDate: 1 });
 appointmentSchema.index({ doctor: 1, appointmentDate: 1, appointmentTime: 1 }, { unique: true });
 
 // Check for conflicts before saving
-appointmentSchema.pre('save', async function(next) {
+appointmentSchema.pre('save', async function (next) {
   if (!this.isNew && !this.isModified('appointmentDate') && !this.isModified('appointmentTime')) {
     return next();
   }
-  
+
   // Check for existing appointment at same time
   const existingAppointment = await this.constructor.findOne({
     doctor: this.doctor,
@@ -102,11 +103,11 @@ appointmentSchema.pre('save', async function(next) {
     status: { $nin: ['cancelled', 'no-show'] },
     _id: { $ne: this._id }
   });
-  
+
   if (existingAppointment) {
     throw new Error('Doctor already has an appointment at this time');
   }
-  
+
   next();
 });
 

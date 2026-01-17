@@ -1,113 +1,59 @@
 import { useState, useEffect } from 'react';
-import { Plus, Phone, CheckCircle, Edit2, Trash2 } from 'lucide-react';
+import { Phone, CheckCircle, ExternalLink, Activity } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Layout from '../components/Layout';
 import Table from '../components/Table';
-import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
-import { followUpService, patientService } from '../services';
-import { formatDate, getStatusColor } from '../utils/helpers';
-
-const FOLLOW_UP_TYPES = [
-  'Post-Visit',
-  'Medication Reminder',
-  'Lab Result',
-  'Chronic Care',
-  'Wellness Check',
-  'Recovery Check'
-];
-
-const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
+import { patientService } from '../services';
+import { formatDate } from '../utils/helpers';
 
 export default function FollowUps() {
-  const [followUps, setFollowUps] = useState([]);
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingFollowUp, setEditingFollowUp] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('all');
-
-  const [formData, setFormData] = useState({
-    patient: '',
-    type: 'Post-Visit',
-    priority: 'Medium',
-    scheduledDate: '',
-    reason: '',
-    notes: '',
-    isRecurring: false,
-    recurringInterval: 7
-  });
+  const [statusFilter, setStatusFilter] = useState('completed');
 
   useEffect(() => {
-    fetchFollowUps();
     fetchPatients();
   }, [currentPage, statusFilter]);
 
-  const fetchFollowUps = async () => {
+  const fetchPatients = async () => {
     try {
       setLoading(true);
       const params = {
         page: currentPage,
-        limit: 10
+        limit: 10,
+        status: statusFilter
       };
-      if (statusFilter !== 'all') params.status = statusFilter;
 
-      const response = await followUpService.getFollowUps(params);
-      setFollowUps(response.data.followUps);
+      const response = await patientService.getPatients(params);
+      setPatients(response.data.patients);
       setTotalPages(response.data.pagination.pages);
     } catch (error) {
-      toast.error('Failed to fetch follow-ups');
+      toast.error('Failed to fetch patients for follow-up');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchPatients = async () => {
+  const handleInitiateCall = async (patientId) => {
     try {
-      const response = await patientService.getPatients({ limit: 100 });
-      setPatients(response.data.patients);
-    } catch (error) {
-      console.error('Failed to fetch patients');
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editingFollowUp) {
-        await followUpService.updateFollowUp(editingFollowUp._id, formData);
-        toast.success('Follow-up updated successfully');
-      } else {
-        await followUpService.createFollowUp(formData);
-        toast.success('Follow-up created successfully');
-      }
-      setShowModal(false);
-      resetForm();
-      fetchFollowUps();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Operation failed');
-    }
-  };
-
-  const handleInitiateCall = async (followUpId) => {
-    try {
-      const response = await followUpService.initiateCall(followUpId);
-      toast.success(response.data.message || 'Call initiated successfully');
-      fetchFollowUps();
+      const response = await patientService.initiateFollowUpCall(patientId);
+      toast.success(response.message || 'AI Follow-up call initiated');
+      // Optionally refresh to see status changes if you track "calling" status on patient
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to initiate call');
     }
   };
 
-  const handleMarkComplete = async (followUpId) => {
+  const handleMarkResolved = async (patientId) => {
     try {
-      await followUpService.completeFollowUp(followUpId);
-      toast.success('Follow-up marked as completed');
-      fetchFollowUps();
+      await patientService.updatePatient(patientId, { status: 'active' });
+      toast.success('Patient follow-up marked as resolved');
+      fetchPatients();
     } catch (error) {
-      toast.error('Failed to complete follow-up');
+      toast.error('Failed to update patient status');
     }
   };
 
@@ -164,38 +110,38 @@ export default function FollowUps() {
 
   const columns = [
     {
-      key: 'patient',
+      key: 'name',
       label: 'Patient',
-      render: (row) => row.patient?.name || 'N/A'
-    },
-    { key: 'type', label: 'Type' },
-    {
-      key: 'priority',
-      label: 'Priority',
       render: (row) => (
-        <span className={`badge ${getPriorityColor(row.priority)}`}>
-          {row.priority}
-        </span>
+        <div className="flex flex-col">
+          <span className="font-medium text-gray-900">{row.name}</span>
+          <span className="text-xs text-gray-500">{row.phone}</span>
+        </div>
       )
+    },
+    {
+      key: 'lastVisit',
+      label: 'Last Visit',
+      render: (row) => row.lastVisit ? formatDate(row.lastVisit) : 'N/A'
+    },
+    {
+      key: 'followUpPurpose',
+      label: 'Follow-up Purpose',
+      render: (row) => row.latestFollowUpDetails?.purpose || 'General Check-up'
     },
     {
       key: 'scheduledDate',
-      label: 'Scheduled Date',
-      render: (row) => formatDate(row.scheduledDate)
+      label: 'Scheduled For',
+      render: (row) => row.latestFollowUpDetails?.scheduledDate ? formatDate(row.latestFollowUpDetails.scheduledDate) : 'ASAP'
     },
     {
       key: 'status',
-      label: 'Status',
+      label: 'Patient Status',
       render: (row) => (
-        <span className={`badge ${getStatusColor(row.status)}`}>
-          {row.status}
+        <span className={`badge ${row.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+          {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
         </span>
       )
-    },
-    {
-      key: 'isRecurring',
-      label: 'Recurring',
-      render: (row) => row.isRecurring ? `Every ${row.recurringInterval} days` : 'No'
     },
     {
       key: 'actions',
@@ -234,7 +180,14 @@ export default function FollowUps() {
             className="text-red-400 hover:text-red-300 transition-colors"
             title="Delete"
           >
-            <Trash2 className="w-4 h-4" />
+            <Phone className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => handleMarkResolved(row._id)}
+            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+            title="Mark as Resolved (Active)"
+          >
+            <CheckCircle className="w-5 h-5" />
           </button>
         </div>
       )
@@ -245,41 +198,55 @@ export default function FollowUps() {
     <Layout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-100">Follow-ups</h1>
-          <button
-            onClick={() => { resetForm(); setShowModal(true); }}
-            className="btn btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            New Follow-up
-          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">AI Follow-up Hub</h1>
+            <p className="text-sm text-gray-500 mt-1">Manage post-visit check-ins and AI conversations for recently seen patients.</p>
+          </div>
+          <div className="flex bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setStatusFilter('completed')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${statusFilter === 'completed' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              Pending Follow-ups
+            </button>
+            <button
+              onClick={() => setStatusFilter('active')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${statusFilter === 'active' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              All Active Patients
+            </button>
+          </div>
         </div>
 
-        <div className="card">
-          <div className="p-6">
-            <div className="mb-4 flex gap-2 flex-wrap">
-              {['all', 'pending', 'in-progress', 'completed', 'cancelled'].map(status => (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    statusFilter === status
-                      ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
-                      : 'bg-dark-700 text-gray-300 hover:bg-dark-600 border border-dark-600'
-                  }`}
-                >
-                  {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
-                </button>
-              ))}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="card bg-gradient-to-br from-primary-50 to-white border-primary-100">
+            <div className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-primary-100 rounded-xl">
+                  <Activity className="w-6 h-6 text-primary-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Ready for Follow-up</p>
+                  <p className="text-2xl font-bold text-gray-900">{patients.filter(p => p.status === 'completed').length}</p>
+                </div>
+              </div>
             </div>
+          </div>
+        </div>
 
+        <div className="card shadow-md border-none overflow-hidden">
+          <div className="p-6">
             {loading ? (
-              <div className="text-center py-8 text-gray-400">Loading...</div>
-            ) : (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              </div>
+            ) : patients.length > 0 ? (
               <>
-                <Table columns={columns} data={followUps} />
+                <Table columns={columns} data={patients} />
                 {totalPages > 1 && (
-                  <div className="mt-4">
+                  <div className="mt-6 border-t pt-4">
                     <Pagination
                       currentPage={currentPage}
                       totalPages={totalPages}
@@ -288,6 +255,14 @@ export default function FollowUps() {
                   </div>
                 )}
               </>
+            ) : (
+              <div className="text-center py-12">
+                <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-8 h-8 text-gray-300" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900">All caught up!</h3>
+                <p className="text-gray-500">No patients are currently pending follow-up calls.</p>
+              </div>
             )}
           </div>
         </div>

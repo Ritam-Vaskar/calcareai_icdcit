@@ -46,6 +46,23 @@ const callLogSchema = new mongoose.Schema({
   transcript: {
     type: String
   },
+  // Full conversation history with timestamps
+  conversation: [{
+    speaker: {
+      type: String,
+      enum: ['patient', 'ai', 'system'],
+      required: true
+    },
+    text: {
+      type: String,
+      required: true
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    confidence: Number
+  }],
   intent: {
     detected: {
       type: String,
@@ -107,7 +124,7 @@ const callLogSchema = new mongoose.Schema({
 });
 
 // Indexes
-callLogSchema.index({ callId: 1 });
+// callId already has unique index from schema definition
 callLogSchema.index({ patient: 1 });
 callLogSchema.index({ appointment: 1 });
 callLogSchema.index({ status: 1 });
@@ -115,9 +132,9 @@ callLogSchema.index({ callType: 1 });
 callLogSchema.index({ startTime: -1 });
 
 // Virtual for call success
-callLogSchema.virtual('isSuccessful').get(function() {
-  return ['answered', 'completed'].includes(this.status) && 
-         ['appointment-confirmed', 'follow-up-completed'].includes(this.outcome);
+callLogSchema.virtual('isSuccessful').get(function () {
+  return ['answered', 'completed'].includes(this.status) &&
+    ['appointment-confirmed', 'follow-up-completed'].includes(this.outcome);
 });
 
 module.exports = mongoose.model('CallLog', callLogSchema);

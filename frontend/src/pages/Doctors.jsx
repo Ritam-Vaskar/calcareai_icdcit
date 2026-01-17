@@ -154,19 +154,21 @@ export default function Doctors() {
     setFormData(prev => ({
       ...prev,
       availability: [
-        ...(prev.availability || []),
+        ...(Array.isArray(prev.availability) ? prev.availability : []),
         { dayOfWeek: 'Monday', startTime: '09:00', endTime: '17:00' }
       ]
     }));
   };
 
   const updateAvailabilitySlot = (index, field, value) => {
+    if (!Array.isArray(formData.availability)) return;
     const updated = [...formData.availability];
     updated[index][field] = value;
     setFormData({ ...formData, availability: updated });
   };
 
   const removeAvailabilitySlot = (index) => {
+    if (!Array.isArray(formData.availability)) return;
     const updated = formData.availability.filter((_, i) => i !== index);
     setFormData({ ...formData, availability: updated });
   };
@@ -408,7 +410,8 @@ export default function Doctors() {
                 <p className="text-sm text-gray-500 text-center italic">No availability slots added yet.</p>
               )}
 
-              {formData.availability.map((slot, index) => (
+
+              {Array.isArray(formData.availability) && formData.availability.map((slot, index) => (
                 <div key={index} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-dark-800 p-3 rounded-lg border border-dark-600">
                   <select
                     value={slot.dayOfWeek}

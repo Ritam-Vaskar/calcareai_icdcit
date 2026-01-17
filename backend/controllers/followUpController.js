@@ -1,7 +1,6 @@
 const FollowUp = require('../models/FollowUp');
 const Patient = require('../models/Patient');
 const CallLog = require('../models/CallLog');
-const vapiService = require('../services/vapiService');
 const logger = require('../utils/logger');
 
 // @desc    Get all follow-ups
@@ -21,12 +20,12 @@ exports.getFollowUps = async (req, res, next) => {
     } = req.query;
 
     const query = {};
-    
+
     if (patient) query.patient = patient;
     if (type) query.type = type;
     if (status) query.status = status;
     if (priority) query.priority = priority;
-    
+
     if (dateFrom || dateTo) {
       query.scheduledDate = {};
       if (dateFrom) query.scheduledDate.$gte = new Date(dateFrom);
@@ -46,14 +45,19 @@ exports.getFollowUps = async (req, res, next) => {
       .limit(parseInt(limit));
 
     const total = await FollowUp.countDocuments(query);
+    const pages = Math.ceil(total / limit);
 
     res.status(200).json({
       success: true,
-      count: followUps.length,
-      total,
-      pages: Math.ceil(total / limit),
-      currentPage: parseInt(page),
-      data: { followUps }
+      data: {
+        followUps,
+        pagination: {
+          total,
+          pages,
+          page: parseInt(page),
+          limit: parseInt(limit)
+        }
+      }
     });
   } catch (error) {
     next(error);
@@ -94,11 +98,11 @@ exports.getFollowUp = async (req, res, next) => {
 exports.createFollowUp = async (req, res, next) => {
   try {
     const followUp = await FollowUp.create(req.body);
-    
+
     await followUp.populate('patient doctor');
 
     logger.info('Follow-up created', { followUpId: followUp._id });
-    logger.audit('FOLLOWUP_CREATED', req.user.email, { 
+    logger.audit('FOLLOWUP_CREATED', req.user.email, {
       followUpId: followUp._id,
       patientName: followUp.patient.name
     });
@@ -177,7 +181,8 @@ exports.deleteFollowUp = async (req, res, next) => {
 exports.initiateFollowUpCall = async (req, res, next) => {
   try {
     const followUp = await FollowUp.findById(req.params.id)
-      .populate('patient');
+      .populate('patient')
+      .populate('doctor');
 
     if (!followUp) {
       return res.status(404).json({
@@ -193,36 +198,38 @@ exports.initiateFollowUpCall = async (req, res, next) => {
       });
     }
 
-    // Initiate Vapi call
-    const vapiCall = await vapiService.makeFollowUpCall(
+    // Import twilioService
+    const twilioService = require('../services/twilioService');
+
+    // Initiate Twilio call for follow-up
+    const twilioCall = await twilioService.makeFollowUpCall(
       followUp.patient,
       followUp
     );
 
     // Create call log
     const callLog = await CallLog.create({
-      callId: vapiCall.id,
+      callId: twilioCall.id,
       patient: followUp.patient._id,
       followUp: followUp._id,
       callType: 'follow-up',
       status: 'initiated',
-      language: followUp.patient.language,
-      aiProvider: 'vapi',
-      vapiData: {
-        assistantId: vapiCall.assistantId,
-        callData: vapiCall
-      }
+      language: followUp.patient.language || 'en-IN',
+      aiProvider: 'twilio'
     });
 
     // Update follow-up
     followUp.callLog = callLog._id;
     followUp.status = 'in-progress';
+    if (!followUp.attempt) {
+      followUp.attempt = { current: 0, max: 3 };
+    }
     followUp.attempt.current += 1;
     await followUp.save();
 
-    logger.info('Follow-up call initiated', { 
+    logger.info('Follow-up call initiated via Twilio', {
       followUpId: followUp._id,
-      callId: vapiCall.id 
+      callId: twilioCall.id
     });
 
     res.status(200).json({
@@ -230,7 +237,7 @@ exports.initiateFollowUpCall = async (req, res, next) => {
       message: 'Follow-up call initiated successfully',
       data: {
         callLog,
-        vapiCall
+        twilioCall
       }
     });
   } catch (error) {
@@ -257,7 +264,7 @@ exports.completeFollowUp = async (req, res, next) => {
 
     followUp.status = 'completed';
     followUp.completedDate = new Date();
-    
+
     if (responses) followUp.responses = responses;
     if (notes) followUp.notes = notes;
     if (actionItems) {
@@ -268,7 +275,7 @@ exports.completeFollowUp = async (req, res, next) => {
     await followUp.save();
 
     logger.info('Follow-up completed', { followUpId: followUp._id });
-    logger.audit('FOLLOWUP_COMPLETED', req.user.email, { 
+    logger.audit('FOLLOWUP_COMPLETED', req.user.email, {
       followUpId: followUp._id
     });
 
@@ -288,7 +295,7 @@ exports.completeFollowUp = async (req, res, next) => {
 exports.getFollowUpStats = async (req, res, next) => {
   try {
     const total = await FollowUp.countDocuments();
-    
+
     const byStatus = await FollowUp.aggregate([
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
@@ -333,14 +340,14 @@ exports.getFollowUpStats = async (req, res, next) => {
 exports.getDueFollowUps = async (req, res, next) => {
   try {
     const now = new Date();
-    
+
     const dueFollowUps = await FollowUp.find({
       status: 'scheduled',
       scheduledDate: { $lte: now },
       $expr: { $lt: ['$attempt.current', '$attempt.max'] }
     })
-    .populate('patient', 'name phone language')
-    .sort({ priority: -1, scheduledDate: 1 });
+      .populate('patient', 'name phone language')
+      .sort({ priority: -1, scheduledDate: 1 });
 
     res.status(200).json({
       success: true,

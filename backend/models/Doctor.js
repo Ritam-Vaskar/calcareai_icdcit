@@ -40,57 +40,20 @@ const doctorSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  availability: {
-    monday: {
-      isAvailable: { type: Boolean, default: false },
-      slots: [{
-        startTime: String,
-        endTime: String
-      }]
+  availability: [{
+    dayOfWeek: {
+      type: String,
+      enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     },
-    tuesday: {
-      isAvailable: { type: Boolean, default: false },
-      slots: [{
-        startTime: String,
-        endTime: String
-      }]
+    startTime: {
+      type: String,
+      required: true
     },
-    wednesday: {
-      isAvailable: { type: Boolean, default: false },
-      slots: [{
-        startTime: String,
-        endTime: String
-      }]
-    },
-    thursday: {
-      isAvailable: { type: Boolean, default: false },
-      slots: [{
-        startTime: String,
-        endTime: String
-      }]
-    },
-    friday: {
-      isAvailable: { type: Boolean, default: false },
-      slots: [{
-        startTime: String,
-        endTime: String
-      }]
-    },
-    saturday: {
-      isAvailable: { type: Boolean, default: false },
-      slots: [{
-        startTime: String,
-        endTime: String
-      }]
-    },
-    sunday: {
-      isAvailable: { type: Boolean, default: false },
-      slots: [{
-        startTime: String,
-        endTime: String
-      }]
+    endTime: {
+      type: String,
+      required: true
     }
-  },
+  }],
   consultationFee: {
     type: Number,
     min: 0
@@ -117,20 +80,23 @@ const doctorSchema = new mongoose.Schema({
 
 // Indexes
 doctorSchema.index({ specialization: 1 });
-doctorSchema.index({ email: 1 });
+// email already has unique index from schema definition
 doctorSchema.index({ status: 1 });
 
 // Method to check if doctor is available on a specific day and time
-doctorSchema.methods.isAvailableAt = function(dayOfWeek, time) {
-  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const day = days[dayOfWeek];
-  
-  if (!this.availability[day].isAvailable) {
-    return false;
-  }
-  
+doctorSchema.methods.isAvailableAt = function (dayOfWeek, time) {
+  if (!Array.isArray(this.availability)) return false;
+
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayName = dayNames[dayOfWeek];
+
+  // Find slots for the given day
+  const daySlots = this.availability.filter(slot => slot.dayOfWeek === dayName);
+
+  if (daySlots.length === 0) return false;
+
   // Check if time falls within any slot
-  return this.availability[day].slots.some(slot => {
+  return daySlots.some(slot => {
     return time >= slot.startTime && time <= slot.endTime;
   });
 };

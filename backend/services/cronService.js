@@ -1,7 +1,6 @@
 const cron = require('node-cron');
-const FollowUp = require('../models/FollowUp');
 const Appointment = require('../models/Appointment');
-const vapiService = require('./vapiService');
+const Patient = require('../models/Patient');
 const CallLog = require('../models/CallLog');
 const logger = require('../utils/logger');
 
@@ -12,74 +11,58 @@ class CronService {
 
   // Initialize all cron jobs
   init() {
-    // Check for due follow-ups every hour
     this.scheduleFollowUpCalls();
-
-    // Send appointment reminders daily at 9 AM
     this.scheduleAppointmentReminders();
-
-    // Retry failed calls every 2 hours
     this.scheduleRetries();
 
-    logger.info('Cron jobs initialized');
+    logger.info('Cron jobs initialized and enabled');
   }
 
-  // Schedule follow-up calls
+  // Schedule follow-up calls (Patient-centric)
   scheduleFollowUpCalls() {
     // Run every hour
     const job = cron.schedule('0 * * * *', async () => {
       try {
-        logger.info('Running follow-up call scheduler');
+        logger.info('Running patient follow-up call scheduler');
 
         const now = new Date();
-        const dueFollowUps = await FollowUp.find({
-          status: 'scheduled',
-          scheduledDate: { $lte: now },
-          $expr: { $lt: ['$attempt.current', '$attempt.max'] }
-        }).populate('patient');
+        // Find patients who finished a visit and are due for a follow-up call
+        const duePatients = await Patient.find({
+          status: 'completed',
+          nextFollowUp: { $lte: now }
+        });
 
-        logger.info(`Found ${dueFollowUps.length} due follow-ups`);
+        logger.info(`Found ${duePatients.length} patients due for follow-up`);
 
-        for (const followUp of dueFollowUps) {
+        for (const patient of duePatients) {
           try {
+            // Import twilioService
+            const twilioService = require('./twilioService');
+
             // Initiate call
-            const vapiCall = await vapiService.makeFollowUpCall(
-              followUp.patient,
-              followUp
-            );
+            const twilioCall = await twilioService.makePatientCall(patient);
 
             // Create call log
-            const callLog = await CallLog.create({
-              callId: vapiCall.id,
-              patient: followUp.patient._id,
-              followUp: followUp._id,
+            await CallLog.create({
+              callId: twilioCall.id,
+              patient: patient._id,
               callType: 'follow-up',
               status: 'initiated',
-              language: followUp.patient.language,
-              aiProvider: 'vapi',
-              vapiData: {
-                assistantId: vapiCall.assistantId,
-                callData: vapiCall
-              }
+              language: patient.language || 'en-IN',
+              aiProvider: 'twilio'
             });
 
-            // Update follow-up
-            followUp.callLog = callLog._id;
-            followUp.status = 'in-progress';
-            followUp.attempt.current += 1;
-            await followUp.save();
-
-            logger.info('Follow-up call initiated', { 
-              followUpId: followUp._id,
-              callId: vapiCall.id 
+            logger.info('Follow-up call initiated (Patient-centric)', {
+              patientId: patient._id,
+              callId: twilioCall.id
             });
 
             // Add delay to avoid rate limits
             await new Promise(resolve => setTimeout(resolve, 2000));
           } catch (error) {
-            logger.error('Error initiating follow-up call', { 
-              followUpId: followUp._id,
-              error: error.message 
+            logger.error('Error initiating patient follow-up call', {
+              patientId: patient._id,
+              error: error.message
             });
           }
         }
@@ -101,7 +84,7 @@ class CronService {
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         tomorrow.setHours(0, 0, 0, 0);
-        
+
         const dayAfter = new Date(tomorrow);
         dayAfter.setDate(dayAfter.getDate() + 1);
 
@@ -116,25 +99,24 @@ class CronService {
 
         for (const appointment of appointments) {
           try {
+            // Import twilioService
+            const twilioService = require('./twilioService');
+
             // Initiate reminder call
-            const vapiCall = await vapiService.makeAppointmentCall(
+            const twilioCall = await twilioService.makeAppointmentCall(
               appointment.patient,
               appointment
             );
 
             // Create call log
             const callLog = await CallLog.create({
-              callId: vapiCall.id,
+              callId: twilioCall.id,
               patient: appointment.patient._id,
               appointment: appointment._id,
               callType: 'appointment-reminder',
               status: 'initiated',
-              language: appointment.patient.language,
-              aiProvider: 'vapi',
-              vapiData: {
-                assistantId: vapiCall.assistantId,
-                callData: vapiCall
-              }
+              language: appointment.patient.language || 'en-IN',
+              aiProvider: 'twilio'
             });
 
             // Update appointment
@@ -144,17 +126,17 @@ class CronService {
             appointment.callAttempts += 1;
             await appointment.save();
 
-            logger.info('Appointment reminder sent', { 
+            logger.info('Appointment reminder sent via Twilio', {
               appointmentId: appointment._id,
-              callId: vapiCall.id 
+              callId: twilioCall.id
             });
 
             // Add delay
             await new Promise(resolve => setTimeout(resolve, 2000));
           } catch (error) {
-            logger.error('Error sending reminder', { 
+            logger.error('Error sending reminder', {
               appointmentId: appointment._id,
-              error: error.message 
+              error: error.message
             });
           }
         }
@@ -177,57 +159,52 @@ class CronService {
           status: { $in: ['failed', 'no-answer', 'busy'] },
           retryCount: { $lt: 3 },
           startTime: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } // Last 24 hours
-        }).populate('patient appointment followUp');
+        }).populate('patient appointment');
 
         logger.info(`Found ${failedCalls.length} calls to retry`);
 
         for (const call of failedCalls) {
           try {
-            let vapiCall;
-            
+            // Import twilioService
+            const twilioService = require('./twilioService');
+            let twilioCall;
+
             if (call.appointment) {
-              vapiCall = await vapiService.makeAppointmentCall(
+              twilioCall = await twilioService.makeAppointmentCall(
                 call.patient,
                 call.appointment
               );
-            } else if (call.followUp) {
-              vapiCall = await vapiService.makeFollowUpCall(
-                call.patient,
-                call.followUp
-              );
+            } else if (call.callType === 'follow-up' || call.followUp) {
+              // Priority given to patient-centric retries
+              twilioCall = await twilioService.makePatientCall(call.patient);
             } else {
               continue;
             }
 
             // Create new call log for retry
-            const newCallLog = await CallLog.create({
-              callId: vapiCall.id,
+            await CallLog.create({
+              callId: twilioCall.id,
               patient: call.patient._id,
               appointment: call.appointment?._id,
-              followUp: call.followUp?._id,
               callType: call.callType,
               status: 'initiated',
-              language: call.language,
-              aiProvider: 'vapi',
-              retryCount: call.retryCount + 1,
-              vapiData: {
-                assistantId: vapiCall.assistantId,
-                callData: vapiCall
-              }
+              language: call.language || 'en-IN',
+              aiProvider: 'twilio',
+              retryCount: (call.retryCount || 0) + 1
             });
 
-            logger.info('Call retry initiated', { 
+            logger.info('Call retry initiated via Twilio', {
               originalCallId: call.callId,
-              newCallId: vapiCall.id,
-              retryCount: call.retryCount + 1
+              newCallId: twilioCall.id,
+              retryCount: (call.retryCount || 0) + 1
             });
 
             // Add delay
             await new Promise(resolve => setTimeout(resolve, 3000));
           } catch (error) {
-            logger.error('Error retrying call', { 
+            logger.error('Error retrying call', {
               callId: call.callId,
-              error: error.message 
+              error: error.message
             });
           }
         }
