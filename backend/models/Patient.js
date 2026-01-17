@@ -10,7 +10,8 @@ const patientSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Phone number is required'],
     trim: true,
-    match: [/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, 'Please provide a valid phone number']
+    // E.164 format: +[country code][number] (e.g., +919876543210)
+    match: [/^\+[1-9]\d{1,14}$/, 'Please provide a valid phone number in E.164 format (e.g., +919876543210)']
   },
   email: {
     type: String,
@@ -81,7 +82,7 @@ patientSchema.index({ assignedDoctor: 1 });
 patientSchema.index({ status: 1 });
 
 // Virtual for full address
-patientSchema.virtual('fullAddress').get(function() {
+patientSchema.virtual('fullAddress').get(function () {
   const addr = this.address;
   return `${addr.street}, ${addr.city}, ${addr.state} ${addr.zipCode}, ${addr.country}`;
 });

@@ -9,7 +9,7 @@ exports.getDoctors = async (req, res, next) => {
     const { search, specialization, status, page = 1, limit = 10 } = req.query;
 
     const query = {};
-    
+
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -17,7 +17,7 @@ exports.getDoctors = async (req, res, next) => {
         { specialization: { $regex: search, $options: 'i' } }
       ];
     }
-    
+
     if (specialization) query.specialization = { $regex: specialization, $options: 'i' };
     if (status) query.status = status;
 
@@ -74,9 +74,9 @@ exports.createDoctor = async (req, res, next) => {
     const doctor = await Doctor.create(req.body);
 
     logger.info('Doctor created', { doctorId: doctor._id, name: doctor.name });
-    logger.audit('DOCTOR_CREATED', req.user.email, { 
+    logger.audit('DOCTOR_CREATED', req.user.email, {
       doctorId: doctor._id,
-      doctorName: doctor.name 
+      doctorName: doctor.name
     });
 
     res.status(201).json({
@@ -108,9 +108,9 @@ exports.updateDoctor = async (req, res, next) => {
     }
 
     logger.info('Doctor updated', { doctorId: doctor._id });
-    logger.audit('DOCTOR_UPDATED', req.user.email, { 
+    logger.audit('DOCTOR_UPDATED', req.user.email, {
       doctorId: doctor._id,
-      doctorName: doctor.name 
+      doctorName: doctor.name
     });
 
     res.status(200).json({
@@ -141,9 +141,9 @@ exports.deleteDoctor = async (req, res, next) => {
     await doctor.save();
 
     logger.info('Doctor deleted/deactivated', { doctorId: doctor._id });
-    logger.audit('DOCTOR_DELETED', req.user.email, { 
+    logger.audit('DOCTOR_DELETED', req.user.email, {
       doctorId: doctor._id,
-      doctorName: doctor.name 
+      doctorName: doctor.name
     });
 
     res.status(200).json({
@@ -192,7 +192,8 @@ exports.updateDoctorAvailability = async (req, res, next) => {
       });
     }
 
-    doctor.availability = { ...doctor.availability, ...req.body };
+    // Replace entire availability array
+    doctor.availability = req.body.availability || req.body;
     await doctor.save();
 
     logger.info('Doctor availability updated', { doctorId: doctor._id });
@@ -213,7 +214,7 @@ exports.updateDoctorAvailability = async (req, res, next) => {
 exports.getAvailableSlots = async (req, res, next) => {
   try {
     const { date } = req.query;
-    
+
     if (!date) {
       return res.status(400).json({
         success: false,
@@ -231,12 +232,13 @@ exports.getAvailableSlots = async (req, res, next) => {
     }
 
     const dayOfWeek = new Date(date).getDay();
-    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayName = days[dayOfWeek];
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = dayNames[dayOfWeek];
 
-    const availability = doctor.availability[dayName];
+    // Filter availability for the specific day
+    const daySlots = doctor.availability.filter(slot => slot.dayOfWeek === dayName);
 
-    if (!availability.isAvailable || !availability.slots.length) {
+    if (daySlots.length === 0) {
       return res.status(200).json({
         success: true,
         data: { slots: [] },
@@ -246,7 +248,7 @@ exports.getAvailableSlots = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: { slots: availability.slots }
+      data: { slots: daySlots }
     });
   } catch (error) {
     next(error);

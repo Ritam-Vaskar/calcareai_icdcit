@@ -89,11 +89,21 @@ class VapiService {
 
       return response.data;
     } catch (error) {
-      logger.error('Error making call', {
-        error: error.response?.data || error.message,
+      const errorMessage = error.response?.data?.message;
+      const errorDetails = {
+        status: error.response?.status,
+        message: Array.isArray(errorMessage) ? errorMessage.join(', ') : errorMessage,
+        error: error.response?.data?.error,
         phoneNumber
-      });
-      throw error;
+      };
+
+      logger.error('Error making call', errorDetails);
+
+      // Throw a more descriptive error
+      const err = new Error(errorDetails.message || 'Failed to initiate call');
+      err.status = error.response?.status || 500;
+      err.details = errorDetails;
+      throw err;
     }
   }
 

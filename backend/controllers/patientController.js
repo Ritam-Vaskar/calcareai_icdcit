@@ -10,7 +10,7 @@ exports.getPatients = async (req, res, next) => {
 
     // Build query
     const query = {};
-    
+
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -18,7 +18,7 @@ exports.getPatients = async (req, res, next) => {
         { email: { $regex: search, $options: 'i' } }
       ];
     }
-    
+
     if (language) query.language = language;
     if (status) query.status = status;
     if (doctor) query.assignedDoctor = doctor;
@@ -76,12 +76,36 @@ exports.getPatient = async (req, res, next) => {
 // @access  Private
 exports.createPatient = async (req, res, next) => {
   try {
+    // Validate required fields
+    if (!req.body.name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Patient name is required'
+      });
+    }
+
+    if (!req.body.phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number is required'
+      });
+    }
+
+    // Validate phone format
+    const phoneRegex = /^\+[1-9]\d{1,14}$/;
+    if (!phoneRegex.test(req.body.phone)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number must be in E.164 format (e.g., +919876543210 for India, +15551234567 for US)'
+      });
+    }
+
     const patient = await Patient.create(req.body);
 
     logger.info('Patient created', { patientId: patient._id, name: patient.name });
-    logger.audit('PATIENT_CREATED', req.user.email, { 
+    logger.audit('PATIENT_CREATED', req.user.email, {
       patientId: patient._id,
-      patientName: patient.name 
+      patientName: patient.name
     });
 
     res.status(201).json({
@@ -90,6 +114,24 @@ exports.createPatient = async (req, res, next) => {
       data: { patient }
     });
   } catch (error) {
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: messages.join(', ')
+      });
+    }
+
+    // Handle duplicate phone/email
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(400).json({
+        success: false,
+        message: `A patient with this ${field} already exists`
+      });
+    }
+
     next(error);
   }
 };
@@ -113,9 +155,9 @@ exports.updatePatient = async (req, res, next) => {
     }
 
     logger.info('Patient updated', { patientId: patient._id });
-    logger.audit('PATIENT_UPDATED', req.user.email, { 
+    logger.audit('PATIENT_UPDATED', req.user.email, {
       patientId: patient._id,
-      patientName: patient.name 
+      patientName: patient.name
     });
 
     res.status(200).json({
@@ -147,9 +189,9 @@ exports.deletePatient = async (req, res, next) => {
     await patient.save();
 
     logger.info('Patient deleted/archived', { patientId: patient._id });
-    logger.audit('PATIENT_DELETED', req.user.email, { 
+    logger.audit('PATIENT_DELETED', req.user.email, {
       patientId: patient._id,
-      patientName: patient.name 
+      patientName: patient.name
     });
 
     res.status(200).json({

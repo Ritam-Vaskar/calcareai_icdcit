@@ -10,22 +10,22 @@ const logger = require('../utils/logger');
 // @access  Private
 exports.getAppointments = async (req, res, next) => {
   try {
-    const { 
-      patient, 
-      doctor, 
-      status, 
-      dateFrom, 
+    const {
+      patient,
+      doctor,
+      status,
+      dateFrom,
       dateTo,
-      page = 1, 
-      limit = 10 
+      page = 1,
+      limit = 10
     } = req.query;
 
     const query = {};
-    
+
     if (patient) query.patient = patient;
     if (doctor) query.doctor = doctor;
     if (status) query.status = status;
-    
+
     if (dateFrom || dateTo) {
       query.appointmentDate = {};
       if (dateFrom) query.appointmentDate.$gte = new Date(dateFrom);
@@ -103,25 +103,40 @@ exports.createAppointment = async (req, res, next) => {
       });
     }
 
-    // Check if doctor is available
+    // Check if doctor is available on the selected day
     const dayOfWeek = new Date(appointmentDate).getDay();
-    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayName = days[dayOfWeek];
-    
-    if (!doctorDoc.availability[dayName].isAvailable) {
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = dayNames[dayOfWeek];
+
+    // Check if doctor has any availability for this day
+    const daySlots = doctorDoc.availability.filter(slot => slot.dayOfWeek === dayName);
+
+    if (daySlots.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Doctor is not available on this day'
+        message: `Doctor is not available on ${dayName}`
+      });
+    }
+
+    // Optionally: Check if the appointment time falls within available slots
+    const isTimeAvailable = daySlots.some(slot => {
+      return appointmentTime >= slot.startTime && appointmentTime <= slot.endTime;
+    });
+
+    if (!isTimeAvailable) {
+      return res.status(400).json({
+        success: false,
+        message: `Doctor is not available at ${appointmentTime} on ${dayName}. Available slots: ${daySlots.map(s => `${s.startTime}-${s.endTime}`).join(', ')}`
       });
     }
 
     // Create appointment
     const appointment = await Appointment.create(req.body);
-    
+
     await appointment.populate('patient doctor');
 
     logger.info('Appointment created', { appointmentId: appointment._id });
-    logger.audit('APPOINTMENT_CREATED', req.user.email, { 
+    logger.audit('APPOINTMENT_CREATED', req.user.email, {
       appointmentId: appointment._id,
       patientName: patientDoc.name,
       doctorName: doctorDoc.name
@@ -156,7 +171,7 @@ exports.updateAppointment = async (req, res, next) => {
     }
 
     logger.info('Appointment updated', { appointmentId: appointment._id });
-    logger.audit('APPOINTMENT_UPDATED', req.user.email, { 
+    logger.audit('APPOINTMENT_UPDATED', req.user.email, {
       appointmentId: appointment._id
     });
 
@@ -192,7 +207,7 @@ exports.cancelAppointment = async (req, res, next) => {
     await appointment.save();
 
     logger.info('Appointment cancelled', { appointmentId: appointment._id });
-    logger.audit('APPOINTMENT_CANCELLED', req.user.email, { 
+    logger.audit('APPOINTMENT_CANCELLED', req.user.email, {
       appointmentId: appointment._id,
       reason: cancellationReason
     });
@@ -249,11 +264,11 @@ exports.rescheduleAppointment = async (req, res, next) => {
 
     await newAppointment.populate('patient doctor');
 
-    logger.info('Appointment rescheduled', { 
-      oldId: oldAppointment._id, 
-      newId: newAppointment._id 
+    logger.info('Appointment rescheduled', {
+      oldId: oldAppointment._id,
+      newId: newAppointment._id
     });
-    logger.audit('APPOINTMENT_RESCHEDULED', req.user.email, { 
+    logger.audit('APPOINTMENT_RESCHEDULED', req.user.email, {
       oldId: oldAppointment._id,
       newId: newAppointment._id
     });
@@ -284,6 +299,14 @@ exports.initiateAppointmentCall = async (req, res, next) => {
       });
     }
 
+    // Validate patient phone number
+    if (!appointment.patient.phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Patient phone number is missing'
+      });
+    }
+
     // Initiate Vapi call
     const vapiCall = await vapiService.makeAppointmentCall(
       appointment.patient,
@@ -311,9 +334,9 @@ exports.initiateAppointmentCall = async (req, res, next) => {
     appointment.lastCallDate = new Date();
     await appointment.save();
 
-    logger.info('AI call initiated', { 
+    logger.info('AI call initiated', {
       appointmentId: appointment._id,
-      callId: vapiCall.id 
+      callId: vapiCall.id
     });
 
     res.status(200).json({
@@ -326,7 +349,27 @@ exports.initiateAppointmentCall = async (req, res, next) => {
     });
   } catch (error) {
     logger.error('Error initiating call', error);
-    next(error);
+
+    // Check for specific error types
+    const errorMessage = error.message || 'Failed to initiate call';
+    const isInternationalError = errorMessage.includes('international') ||
+      errorMessage.includes('Free Vapi numbers');
+
+    if (isInternationalError) {
+      return res.status(400).json({
+        success: false,
+        message: 'International calling not supported',
+        error: errorMessage,
+        suggestion: 'Please update patient phone to US format (+1XXXXXXXXXX) or upgrade Vapi plan for international calling. See INTERNATIONAL_CALLING_SOLUTIONS.md for alternatives.'
+      });
+    }
+
+    // Generic error response
+    res.status(error.status || 500).json({
+      success: false,
+      message: errorMessage,
+      error: error.details || error.message
+    });
   }
 };
 
@@ -336,7 +379,7 @@ exports.initiateAppointmentCall = async (req, res, next) => {
 exports.getAppointmentStats = async (req, res, next) => {
   try {
     const total = await Appointment.countDocuments();
-    
+
     const byStatus = await Appointment.aggregate([
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
