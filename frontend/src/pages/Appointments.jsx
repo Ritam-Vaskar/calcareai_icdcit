@@ -47,10 +47,16 @@ export default function Appointments() {
       if (statusFilter !== 'all') params.status = statusFilter;
 
       const response = await appointmentService.getAppointments(params);
-      setAppointments(response.data.appointments);
-      setTotalPages(response.data.pagination.pages);
+      console.log('Appointments response:', response);
+
+      if (response && response.data) {
+        setAppointments(response.data.appointments || []);
+        setTotalPages(response.data.pagination?.pages || 1);
+      }
     } catch (error) {
-      toast.error('Failed to fetch appointments');
+      console.error('Failed to fetch appointments:', error);
+      toast.error(error.response?.data?.message || 'Failed to fetch appointments');
+      setAppointments([]);
     } finally {
       setLoading(false);
     }
@@ -59,18 +65,20 @@ export default function Appointments() {
   const fetchPatients = async () => {
     try {
       const response = await patientService.getPatients({ limit: 100 });
-      setPatients(response.data.patients);
+      setPatients(response.data?.patients || []);
     } catch (error) {
-      console.error('Failed to fetch patients');
+      console.error('Failed to fetch patients:', error);
+      setPatients([]);
     }
   };
 
   const fetchDoctors = async () => {
     try {
       const response = await doctorService.getDoctors({ limit: 100 });
-      setDoctors(response.data.doctors);
+      setDoctors(response.data?.doctors || []);
     } catch (error) {
-      console.error('Failed to fetch doctors');
+      console.error('Failed to fetch doctors:', error);
+      setDoctors([]);
     }
   };
 
@@ -223,11 +231,10 @@ export default function Appointments() {
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    statusFilter === status
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${statusFilter === status
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
                 >
                   {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
                 </button>

@@ -5,10 +5,14 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js",
-    "seed": "node utils/seedData.js"
+    "dev": "nodemon index.js"
   },
-  "keywords": ["healthcare", "ai", "vapi", "voice-agent"],
+  "keywords": [
+    "healthcare",
+    "ai",
+    "vapi",
+    "voice-agent"
+  ],
   "author": "CareCall AI Team",
   "license": "MIT",
   "dependencies": {
