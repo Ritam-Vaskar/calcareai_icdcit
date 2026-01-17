@@ -447,18 +447,37 @@ exports.completeAppointment = async (req, res, next) => {
     }
     await appointment.save();
 
+    let followUp = null;
+
     // Update patient status and follow-up details
     if (appointment.patient) {
       const updateData = { status: 'completed' };
 
       if (followUpRequired) {
-        updateData.nextFollowUp = followUpDate || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+        const scheduledDate = followUpDate ? new Date(followUpDate) : new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+        
+        updateData.nextFollowUp = scheduledDate;
         updateData.latestFollowUpDetails = {
           doctorReport: report,
           purpose: followUpPurpose || 'Post-visit check-up',
-          scheduledDate: updateData.nextFollowUp,
+          scheduledDate: scheduledDate,
           doctor: appointment.doctor._id
         };
+
+        // Create FollowUp record
+        followUp = await FollowUp.create({
+          patient: appointment.patient._id,
+          doctor: appointment.doctor._id,
+          appointment: appointment._id,
+          type: 'post-visit',
+          scheduledDate: scheduledDate,
+          status: 'scheduled',
+          priority: 'medium',
+          purpose: followUpPurpose || 'Post-visit check-up',
+          notes: report ? `Doctor's Report: ${report}` : ''
+        });
+
+        logger.info('Follow-up created', { followUpId: followUp._id });
       }
 
       await Patient.findByIdAndUpdate(appointment.patient._id, updateData);
@@ -468,7 +487,7 @@ exports.completeAppointment = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Appointment completed successfully',
+      message: followUpRequired ? 'Appointment completed and follow-up scheduled successfully' : 'Appointment completed successfully',
       data: {
         appointment,
         followUp
