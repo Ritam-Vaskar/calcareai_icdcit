@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import Table from '../components/Table';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 import { patientService } from '../services';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Eye } from 'lucide-react';
 import { getStatusColor } from '../utils/helpers';
 import toast from 'react-hot-toast';
 
 const Patients = () => {
+  const navigate = useNavigate();
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -60,6 +62,15 @@ const Patients = () => {
     { label: 'Language', key: 'language', render: (row) => row.language?.toUpperCase() },
     { label: 'Status', key: 'status', render: (row) => (
       <span className={`badge ${getStatusColor(row.status)}`}>{row.status}</span>
+    )},
+    { label: 'Actions', key: 'actions', render: (row) => (
+      <button
+        onClick={() => navigate(`/patient/${row._id}`)}
+        className="p-2 rounded-lg bg-primary-500/20 text-primary-400 hover:bg-primary-500/30 transition-colors border border-primary-500/30"
+        title="View Dashboard"
+      >
+        <Eye size={16} />
+      </button>
     )}
   ];
 
@@ -67,7 +78,7 @@ const Patients = () => {
     <Layout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Patients</h1>
+          <h1 className="text-2xl font-bold text-gray-100">Patients</h1>
           <button onClick={() => setIsModalOpen(true)} className="btn btn-primary">
             <Plus size={20} className="mr-2" />
             Add Patient
@@ -77,7 +88,7 @@ const Patients = () => {
         <div className="card">
           <div className="mb-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={20} />
               <input
                 type="text"
                 placeholder="Search patients..."
@@ -90,7 +101,7 @@ const Patients = () => {
 
           {loading ? (
             <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto"></div>
             </div>
           ) : (
             <>
@@ -110,7 +121,7 @@ const Patients = () => {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Patient">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Name *</label>
             <input
               type="text"
               required
@@ -120,7 +131,7 @@ const Patients = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Phone *</label>
             <input
               type="tel"
               required
@@ -130,7 +141,7 @@ const Patients = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
             <input
               type="email"
               className="input"
@@ -140,7 +151,7 @@ const Patients = () => {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Age</label>
               <input
                 type="number"
                 className="input"
@@ -149,7 +160,7 @@ const Patients = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Gender</label>
               <select
                 className="input"
                 value={formData.gender}
@@ -163,7 +174,7 @@ const Patients = () => {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Language</label>
             <select
               className="input"
               value={formData.language}

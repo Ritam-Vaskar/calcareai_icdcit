@@ -66,22 +66,22 @@ export default function CallLogs() {
 
   const getStatusBadge = (status) => {
     const colors = {
-      completed: 'bg-green-100 text-green-800',
-      failed: 'bg-red-100 text-red-800',
-      'no-answer': 'bg-yellow-100 text-yellow-800',
-      busy: 'bg-orange-100 text-orange-800',
-      'in-progress': 'bg-blue-100 text-blue-800'
+      completed: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+      failed: 'bg-red-500/20 text-red-400 border border-red-500/30',
+      'no-answer': 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+      busy: 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
+      'in-progress': 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    return colors[status] || 'bg-dark-600 text-gray-400';
   };
 
   const getSentimentBadge = (sentiment) => {
     const colors = {
-      positive: 'bg-green-100 text-green-800',
-      negative: 'bg-red-100 text-red-800',
-      neutral: 'bg-gray-100 text-gray-800'
+      positive: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+      negative: 'bg-red-500/20 text-red-400 border border-red-500/30',
+      neutral: 'bg-dark-600 text-gray-400 border border-dark-500'
     };
-    return colors[sentiment] || 'bg-gray-100 text-gray-800';
+    return colors[sentiment] || 'bg-dark-600 text-gray-400';
   };
 
   const columns = [
@@ -141,7 +141,7 @@ export default function CallLogs() {
       render: (row) => (
         <button
           onClick={() => viewCallDetails(row)}
-          className="text-blue-600 hover:text-blue-800"
+          className="text-blue-400 hover:text-blue-300 transition-colors"
           title="View Details"
         >
           <Eye className="w-4 h-4" />
@@ -154,7 +154,7 @@ export default function CallLogs() {
     <Layout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Call Logs</h1>
+          <h1 className="text-2xl font-bold text-gray-100">Call Logs</h1>
           <button
             onClick={handleExport}
             className="btn btn-primary flex items-center gap-2"
@@ -166,9 +166,9 @@ export default function CallLogs() {
 
         <div className="card">
           <div className="p-6">
-            <div className="mb-4 flex gap-2 flex-wrap">
+            <div className="mb-4 flex gap-4 flex-wrap">
               <div>
-                <label className="text-sm text-gray-600 mb-1 block">Status:</label>
+                <label className="text-sm text-gray-400 mb-1 block">Status:</label>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
@@ -199,7 +199,7 @@ export default function CallLogs() {
             </div>
 
             {loading ? (
-              <div className="text-center py-8">Loading...</div>
+              <div className="text-center py-8 text-gray-400">Loading...</div>
             ) : (
               <>
                 <Table columns={columns} data={callLogs} />
@@ -228,19 +228,19 @@ export default function CallLogs() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm text-gray-600">Patient</label>
-                <p className="font-medium">{selectedCall.patient?.name || 'N/A'}</p>
+                <label className="text-sm text-gray-500">Patient</label>
+                <p className="font-medium text-gray-200">{selectedCall.patient?.name || 'N/A'}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Phone</label>
-                <p className="font-medium">{selectedCall.patient?.phone || selectedCall.phoneNumber}</p>
+                <label className="text-sm text-gray-500">Phone</label>
+                <p className="font-medium text-gray-200">{selectedCall.patient?.phone || selectedCall.phoneNumber}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Call Type</label>
-                <p className="font-medium capitalize">{selectedCall.callType?.replace('-', ' ')}</p>
+                <label className="text-sm text-gray-500">Call Type</label>
+                <p className="font-medium text-gray-200 capitalize">{selectedCall.callType?.replace('-', ' ')}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Status</label>
+                <label className="text-sm text-gray-500">Status</label>
                 <p>
                   <span className={`badge ${getStatusBadge(selectedCall.status)}`}>
                     {selectedCall.status}
@@ -248,26 +248,26 @@ export default function CallLogs() {
                 </p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Duration</label>
-                <p className="font-medium">{formatDuration(selectedCall.duration)}</p>
+                <label className="text-sm text-gray-500">Duration</label>
+                <p className="font-medium text-gray-200">{formatDuration(selectedCall.duration)}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Cost</label>
-                <p className="font-medium">${(selectedCall.cost || 0).toFixed(2)}</p>
+                <label className="text-sm text-gray-500">Cost</label>
+                <p className="font-medium text-gray-200">${(selectedCall.cost || 0).toFixed(2)}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Date & Time</label>
-                <p className="font-medium">{formatDate(selectedCall.createdAt)}</p>
+                <label className="text-sm text-gray-500">Date & Time</label>
+                <p className="font-medium text-gray-200">{formatDate(selectedCall.createdAt)}</p>
               </div>
               {selectedCall.aiMetadata?.intent && (
                 <div>
-                  <label className="text-sm text-gray-600">Intent</label>
-                  <p className="font-medium capitalize">{selectedCall.aiMetadata.intent}</p>
+                  <label className="text-sm text-gray-500">Intent</label>
+                  <p className="font-medium text-gray-200 capitalize">{selectedCall.aiMetadata.intent}</p>
                 </div>
               )}
               {selectedCall.aiMetadata?.sentiment && (
                 <div>
-                  <label className="text-sm text-gray-600">Sentiment</label>
+                  <label className="text-sm text-gray-500">Sentiment</label>
                   <p>
                     <span className={`badge ${getSentimentBadge(selectedCall.aiMetadata.sentiment)}`}>
                       {selectedCall.aiMetadata.sentiment}
@@ -279,16 +279,16 @@ export default function CallLogs() {
 
             {selectedCall.transcript && (
               <div>
-                <label className="text-sm text-gray-600 mb-2 block">Transcript</label>
-                <div className="bg-gray-50 p-4 rounded-lg max-h-64 overflow-y-auto">
-                  <p className="text-sm whitespace-pre-wrap">{selectedCall.transcript}</p>
+                <label className="text-sm text-gray-500 mb-2 block">Transcript</label>
+                <div className="bg-dark-700/50 p-4 rounded-lg max-h-64 overflow-y-auto border border-dark-600">
+                  <p className="text-sm text-gray-300 whitespace-pre-wrap">{selectedCall.transcript}</p>
                 </div>
               </div>
             )}
 
             {selectedCall.recording && (
               <div>
-                <label className="text-sm text-gray-600 mb-2 block">Recording</label>
+                <label className="text-sm text-gray-500 mb-2 block">Recording</label>
                 <audio controls className="w-full">
                   <source src={selectedCall.recording} type="audio/mpeg" />
                   Your browser does not support the audio element.
@@ -298,8 +298,8 @@ export default function CallLogs() {
 
             {selectedCall.errorMessage && (
               <div>
-                <label className="text-sm text-gray-600 mb-2 block">Error Message</label>
-                <div className="bg-red-50 text-red-800 p-3 rounded-lg text-sm">
+                <label className="text-sm text-gray-500 mb-2 block">Error Message</label>
+                <div className="bg-red-500/20 text-red-400 p-3 rounded-lg text-sm border border-red-500/30">
                   {selectedCall.errorMessage}
                 </div>
               </div>
@@ -307,10 +307,10 @@ export default function CallLogs() {
 
             {selectedCall.aiMetadata?.keyPhrases && selectedCall.aiMetadata.keyPhrases.length > 0 && (
               <div>
-                <label className="text-sm text-gray-600 mb-2 block">Key Phrases</label>
+                <label className="text-sm text-gray-500 mb-2 block">Key Phrases</label>
                 <div className="flex flex-wrap gap-2">
                   {selectedCall.aiMetadata.keyPhrases.map((phrase, idx) => (
-                    <span key={idx} className="badge bg-blue-100 text-blue-800">
+                    <span key={idx} className="badge badge-info">
                       {phrase}
                     </span>
                   ))}

@@ -154,12 +154,12 @@ export default function FollowUps() {
 
   const getPriorityColor = (priority) => {
     const colors = {
-      Low: 'bg-gray-100 text-gray-800',
-      Medium: 'bg-blue-100 text-blue-800',
-      High: 'bg-orange-100 text-orange-800',
-      Urgent: 'bg-red-100 text-red-800'
+      Low: 'bg-dark-600 text-gray-400 border border-dark-500',
+      Medium: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+      High: 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
+      Urgent: 'bg-red-500/20 text-red-400 border border-red-500/30'
     };
-    return colors[priority] || 'bg-gray-100 text-gray-800';
+    return colors[priority] || 'bg-dark-600 text-gray-400';
   };
 
   const columns = [
@@ -206,14 +206,14 @@ export default function FollowUps() {
             <>
               <button
                 onClick={() => handleInitiateCall(row._id)}
-                className="text-green-600 hover:text-green-800"
+                className="text-emerald-400 hover:text-emerald-300 transition-colors"
                 title="Initiate Call"
               >
                 <Phone className="w-4 h-4" />
               </button>
               <button
                 onClick={() => handleMarkComplete(row._id)}
-                className="text-blue-600 hover:text-blue-800"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
                 title="Mark Complete"
               >
                 <CheckCircle className="w-4 h-4" />
@@ -223,7 +223,7 @@ export default function FollowUps() {
           {row.status !== 'completed' && (
             <button
               onClick={() => openEditModal(row)}
-              className="text-blue-600 hover:text-blue-800"
+              className="text-indigo-400 hover:text-indigo-300 transition-colors"
               title="Edit"
             >
               <Edit2 className="w-4 h-4" />
@@ -231,7 +231,7 @@ export default function FollowUps() {
           )}
           <button
             onClick={() => handleDelete(row._id)}
-            className="text-red-600 hover:text-red-800"
+            className="text-red-400 hover:text-red-300 transition-colors"
             title="Delete"
           >
             <Trash2 className="w-4 h-4" />
@@ -245,7 +245,7 @@ export default function FollowUps() {
     <Layout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Follow-ups</h1>
+          <h1 className="text-2xl font-bold text-gray-100">Follow-ups</h1>
           <button
             onClick={() => { resetForm(); setShowModal(true); }}
             className="btn btn-primary flex items-center gap-2"
@@ -257,15 +257,15 @@ export default function FollowUps() {
 
         <div className="card">
           <div className="p-6">
-            <div className="mb-4 flex gap-2">
+            <div className="mb-4 flex gap-2 flex-wrap">
               {['all', 'pending', 'in-progress', 'completed', 'cancelled'].map(status => (
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                     statusFilter === status
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
+                      : 'bg-dark-700 text-gray-300 hover:bg-dark-600 border border-dark-600'
                   }`}
                 >
                   {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
@@ -274,7 +274,7 @@ export default function FollowUps() {
             </div>
 
             {loading ? (
-              <div className="text-center py-8">Loading...</div>
+              <div className="text-center py-8 text-gray-400">Loading...</div>
             ) : (
               <>
                 <Table columns={columns} data={followUps} />
@@ -386,14 +386,14 @@ export default function FollowUps() {
                 type="checkbox"
                 checked={formData.isRecurring}
                 onChange={(e) => setFormData({ ...formData, isRecurring: e.target.checked })}
-                className="w-4 h-4"
+                className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-primary-500 focus:ring-primary-500"
               />
-              <span className="text-sm text-gray-700">Recurring Follow-up</span>
+              <span className="text-sm text-gray-300">Recurring Follow-up</span>
             </label>
 
             {formData.isRecurring && (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Every</span>
+                <span className="text-sm text-gray-400">Every</span>
                 <input
                   type="number"
                   min="1"
@@ -401,7 +401,7 @@ export default function FollowUps() {
                   onChange={(e) => setFormData({ ...formData, recurringInterval: e.target.value })}
                   className="input w-20"
                 />
-                <span className="text-sm text-gray-600">days</span>
+                <span className="text-sm text-gray-400">days</span>
               </div>
             )}
           </div>

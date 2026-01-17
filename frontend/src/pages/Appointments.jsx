@@ -184,21 +184,21 @@ export default function Appointments() {
             <>
               <button
                 onClick={() => handleInitiateCall(row._id)}
-                className="text-green-600 hover:text-green-800"
+                className="text-emerald-400 hover:text-emerald-300 transition-colors"
                 title="Initiate Call"
               >
                 <Phone className="w-4 h-4" />
               </button>
               <button
                 onClick={() => openEditModal(row)}
-                className="text-blue-600 hover:text-blue-800"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
                 title="Edit"
               >
                 <Edit2 className="w-4 h-4" />
               </button>
               <button
                 onClick={() => handleCancelAppointment(row._id)}
-                className="text-red-600 hover:text-red-800"
+                className="text-red-400 hover:text-red-300 transition-colors"
                 title="Cancel"
               >
                 <X className="w-4 h-4" />
@@ -214,7 +214,7 @@ export default function Appointments() {
     <Layout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Appointments</h1>
+          <h1 className="text-2xl font-bold text-gray-100">Appointments</h1>
           <button
             onClick={() => { resetForm(); setShowModal(true); }}
             className="btn btn-primary flex items-center gap-2"
@@ -226,14 +226,14 @@ export default function Appointments() {
 
         <div className="card">
           <div className="p-6">
-            <div className="mb-4 flex gap-2">
+            <div className="mb-4 flex gap-2 flex-wrap">
               {['all', 'scheduled', 'confirmed', 'pending-confirmation', 'cancelled', 'completed'].map(status => (
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${statusFilter === status
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${statusFilter === status
+                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
+                    : 'bg-dark-700 text-gray-300 hover:bg-dark-600 border border-dark-600'
                     }`}
                 >
                   {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
@@ -242,7 +242,7 @@ export default function Appointments() {
             </div>
 
             {loading ? (
-              <div className="text-center py-8">Loading...</div>
+              <div className="text-center py-8 text-gray-400">Loading...</div>
             ) : (
               <>
                 <Table columns={columns} data={appointments} />

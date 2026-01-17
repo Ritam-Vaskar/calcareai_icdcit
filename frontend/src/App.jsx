@@ -9,6 +9,8 @@ import Doctors from './pages/Doctors';
 import Appointments from './pages/Appointments';
 import CallLogs from './pages/CallLogs';
 import FollowUps from './pages/FollowUps';
+import PatientDashboard from './pages/PatientDashboard';
+import DoctorDashboard from './pages/DoctorDashboard';
 
 function App() {
   return (
@@ -86,6 +88,22 @@ function App() {
             element={
               <PrivateRoute>
                 <FollowUps />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/patient/:id"
+            element={
+              <PrivateRoute>
+                <PatientDashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/doctor/:id"
+            element={
+              <PrivateRoute>
+                <DoctorDashboard />
               </PrivateRoute>
             }
           />

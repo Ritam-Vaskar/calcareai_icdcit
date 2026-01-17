@@ -48,13 +48,13 @@ const Dashboard = () => {
     }
   };
 
-  const COLORS = ['#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  const COLORS = ['#818cf8', '#34d399', '#fbbf24', '#f87171', '#a78bfa'];
 
   if (loading) {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
         </div>
       </Layout>
     );
@@ -65,8 +65,8 @@ const Dashboard = () => {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-600 mt-1">Welcome back! Here's your healthcare AI overview.</p>
+          <h1 className="text-2xl font-bold text-gray-100">Dashboard</h1>
+          <p className="text-sm text-gray-400 mt-1">Welcome back! Here's your healthcare AI overview.</p>
         </div>
 
         {/* Stats Grid */}
@@ -113,7 +113,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Call Status Distribution */}
           <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Call Status Distribution</h3>
+            <h3 className="text-lg font-semibold text-gray-100 mb-4">Call Status Distribution</h3>
             {callAnalytics?.callsByStatus && (
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -131,8 +131,8 @@ const Dashboard = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip />
-                  <Legend />
+                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }} />
+                  <Legend wrapperStyle={{ color: '#94a3b8' }} />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -140,15 +140,15 @@ const Dashboard = () => {
 
           {/* Call Types */}
           <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Call Types</h3>
+            <h3 className="text-lg font-semibold text-gray-100 mb-4">Call Types</h3>
             {callAnalytics?.callsByType && (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={callAnalytics.callsByType}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="_id" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#0ea5e9" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="_id" stroke="#94a3b8" />
+                  <YAxis stroke="#94a3b8" />
+                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }} />
+                  <Bar dataKey="count" fill="#818cf8" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -156,7 +156,7 @@ const Dashboard = () => {
 
           {/* Sentiment Distribution */}
           <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Sentiment Analysis</h3>
+            <h3 className="text-lg font-semibold text-gray-100 mb-4">Sentiment Analysis</h3>
             {callAnalytics?.sentimentDistribution && (
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -174,8 +174,8 @@ const Dashboard = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip />
-                  <Legend />
+                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }} />
+                  <Legend wrapperStyle={{ color: '#94a3b8' }} />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -183,19 +183,19 @@ const Dashboard = () => {
 
           {/* Recent Calls Timeline */}
           <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Call Activity</h3>
+            <h3 className="text-lg font-semibold text-gray-100 mb-4">Recent Call Activity</h3>
             <div className="space-y-3 max-h-[300px] overflow-y-auto">
               {callAnalytics?.recentCalls?.map((call) => (
-                <div key={call._id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <Phone size={16} className="text-primary-600 mt-1" />
+                <div key={call._id} className="flex items-start space-x-3 p-3 bg-dark-700/50 rounded-lg border border-dark-600">
+                  <Phone size={16} className="text-primary-400 mt-1" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-sm font-medium text-gray-200 truncate">
                       {call.patient?.name}
                     </p>
                     <p className="text-xs text-gray-500">
                       {call.callType} • {call.status}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-xs text-gray-600 mt-1">
                       {formatDate(call.startTime)}
                     </p>
                   </div>
@@ -214,23 +214,23 @@ const Dashboard = () => {
 
         {/* AI Performance Metrics */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Performance Metrics</h3>
+          <h3 className="text-lg font-semibold text-gray-100 mb-4">AI Performance Metrics</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg">
-              <p className="text-sm font-medium text-blue-900">Average Call Duration</p>
-              <p className="text-3xl font-bold text-blue-700 mt-2">
+            <div className="text-center p-4 bg-gradient-to-br from-blue-500/20 to-blue-600/10 rounded-xl border border-blue-500/20">
+              <p className="text-sm font-medium text-blue-400">Average Call Duration</p>
+              <p className="text-3xl font-bold text-blue-300 mt-2">
                 {Math.round(callAnalytics?.averageDuration || 0)}s
               </p>
             </div>
-            <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg">
-              <p className="text-sm font-medium text-green-900">Successful Calls</p>
-              <p className="text-3xl font-bold text-green-700 mt-2">
+            <div className="text-center p-4 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 rounded-xl border border-emerald-500/20">
+              <p className="text-sm font-medium text-emerald-400">Successful Calls</p>
+              <p className="text-3xl font-bold text-emerald-300 mt-2">
                 {callAnalytics?.successfulCalls || 0}
               </p>
             </div>
-            <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg">
-              <p className="text-sm font-medium text-purple-900">Total Cost</p>
-              <p className="text-3xl font-bold text-purple-700 mt-2">
+            <div className="text-center p-4 bg-gradient-to-br from-purple-500/20 to-purple-600/10 rounded-xl border border-purple-500/20">
+              <p className="text-sm font-medium text-purple-400">Total Cost</p>
+              <p className="text-3xl font-bold text-purple-300 mt-2">
                 ${(callAnalytics?.totalCost || 0).toFixed(2)}
               </p>
             </div>
