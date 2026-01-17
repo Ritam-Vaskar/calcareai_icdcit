@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "seed": "node utils/seedData.js",
+    "seed:conversations": "node utils/seedWithConversations.js"
   },
   "keywords": [
     "healthcare",
