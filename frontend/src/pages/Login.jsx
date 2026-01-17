@@ -32,7 +32,7 @@ const Login = () => {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="bg-primary-600 p-3 rounded-2xl">
-              <Phone className="text-white" size={40} />
+              <Phone className="text-gray-900" size={40} />
             </div>
           </div>
           <h2 className="text-3xl font-bold text-gray-900">CareCall AI</h2>

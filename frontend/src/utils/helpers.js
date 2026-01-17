@@ -17,19 +17,19 @@ export const formatDateTime = (date) => {
 
 export const getStatusColor = (status) => {
   const colors = {
-    scheduled: 'badge-info',
-    confirmed: 'badge-success',
-    rescheduled: 'badge-warning',
-    cancelled: 'badge-danger',
-    completed: 'badge-success',
-    'no-show': 'badge-danger',
-    'no-response': 'badge-gray',
-    active: 'badge-success',
-    inactive: 'badge-gray',
-    pending: 'badge-warning',
-    failed: 'badge-danger'
+    scheduled: 'bg-blue-100 text-blue-800',
+    confirmed: 'bg-green-100 text-green-800',
+    rescheduled: 'bg-yellow-100 text-yellow-800',
+    cancelled: 'bg-red-100 text-red-800',
+    completed: 'bg-emerald-100 text-emerald-800',
+    'no-show': 'bg-red-100 text-red-800',
+    'no-response': 'bg-gray-100 text-gray-800',
+    active: 'bg-green-100 text-green-800',
+    inactive: 'bg-gray-100 text-gray-800',
+    pending: 'bg-yellow-100 text-yellow-800',
+    failed: 'bg-red-100 text-red-800'
   };
-  return colors[status] || 'badge-gray';
+  return colors[status] || 'bg-gray-100 text-gray-800';
 };
 
 export const formatDuration = (seconds) => {

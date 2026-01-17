@@ -82,7 +82,7 @@ const Sidebar = () => {
           <div className="p-4 border-t border-gray-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white font-semibold">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-gray-900 font-semibold">
                   {user?.name?.charAt(0).toUpperCase()}
                 </div>
                 <div className="ml-3">

@@ -236,11 +236,26 @@ const followUpService = {
   }
 };
 
+const callAnalysisService = {
+  analyzeCall: (callLogId) => {
+    return api.post(`/call-analysis/${callLogId}/analyze`);
+  },
+
+  analyzeAndSchedule: (callLogId) => {
+    return api.post(`/call-analysis/${callLogId}/schedule`);
+  },
+
+  batchSchedule: (callLogIds) => {
+    return api.post('/call-analysis/batch/schedule', { callLogIds });
+  }
+};
+
 export {
   authService,
   patientService,
   doctorService,
   appointmentService,
   callLogService,
-  followUpService
+  followUpService,
+  callAnalysisService
 };

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Download, Eye, Phone } from 'lucide-react';
+import { Download, Eye, Phone, Brain, Calendar } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Layout from '../components/Layout';
 import Table from '../components/Table';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
-import { callLogService } from '../services';
+import { callLogService, callAnalysisService } from '../services';
 import { formatDate, formatDuration } from '../utils/helpers';
 
 export default function CallLogs() {
@@ -17,6 +17,9 @@ export default function CallLogs() {
   const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [analyzingCall, setAnalyzingCall] = useState(null);
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null);
 
   useEffect(() => {
     fetchCallLogs();
@@ -62,6 +65,38 @@ export default function CallLogs() {
   const viewCallDetails = (call) => {
     setSelectedCall(call);
     setShowDetailModal(true);
+  };
+
+  const handleAnalyzeAndSchedule = async (callId) => {
+    try {
+      setAnalyzingCall(callId);
+      toast.loading('Analyzing conversation...', { id: 'analyze' });
+      
+      const response = await callAnalysisService.analyzeAndSchedule(callId);
+      
+      toast.dismiss('analyze');
+      
+      // Access the nested data structure: response.data.data
+      const result = response.data.data || response.data;
+      
+      if (result.scheduled) {
+        toast.success('Appointment scheduled successfully!');
+      } else {
+        toast(result.message || 'Analysis complete');
+      }
+      
+      setAnalysisResult(result);
+      setShowAnalysisModal(true);
+      
+      // Refresh call logs
+      await fetchCallLogs();
+    } catch (error) {
+      toast.dismiss('analyze');
+      console.error('Analysis error:', error);
+      toast.error(error.response?.data?.message || 'Failed to analyze call');
+    } finally {
+      setAnalyzingCall(null);
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -139,13 +174,33 @@ export default function CallLogs() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <button
-          onClick={() => viewCallDetails(row)}
-          className="text-blue-600 hover:text-blue-800"
-          title="View Details"
-        >
-          <Eye className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => viewCallDetails(row)}
+            className="text-blue-600 hover:text-blue-800"
+            title="View Details"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          {row.conversation && row.conversation.length > 0 && (
+            <button
+              onClick={() => handleAnalyzeAndSchedule(row._id)}
+              disabled={analyzingCall === row._id}
+              className={`${
+                analyzingCall === row._id 
+                  ? 'text-gray-400' 
+                  : 'text-green-600 hover:text-green-800'
+              }`}
+              title="AI Analyze & Schedule"
+            >
+              {analyzingCall === row._id ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+              ) : (
+                <Brain className="w-4 h-4" />
+              )}
+            </button>
+          )}
+        </div>
       )
     }
   ];
@@ -367,6 +422,156 @@ export default function CallLogs() {
                     </span>
                   ))}
                 </div>
+
+      {/* AI Analysis Result Modal */}
+      <Modal
+        isOpen={showAnalysisModal}
+        onClose={() => { setShowAnalysisModal(false); setAnalysisResult(null); }}
+        title="AI Analysis Results"
+        size="lg"
+      >
+        {analysisResult && (
+          <div className="space-y-4">
+            <div className={`p-4 rounded-lg ${
+              analysisResult.scheduled 
+                ? 'bg-green-50 border border-green-200' 
+                : 'bg-blue-50 border border-blue-200'
+            }`}>
+              <div className="flex items-center gap-2 mb-2">
+                {analysisResult.scheduled ? (
+                  <>
+                    <Calendar className="w-5 h-5 text-green-600" />
+                    <h3 className="font-semibold text-green-800">Appointment Scheduled</h3>
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-5 h-5 text-blue-600" />
+                    <h3 className="font-semibold text-blue-800">Analysis Complete</h3>
+                  </>
+                )}
+              </div>
+              <p className="text-sm text-gray-700">{analysisResult.message}</p>
+            </div>
+
+            {analysisResult.analysis && (
+              <div className="space-y-3">
+                <h4 className="font-semibold text-gray-900">Conversation Analysis</h4>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gray-50 p-3 rounded">
+                    <label className="text-xs text-gray-600">Needs Appointment</label>
+                    <p className="font-medium">
+                      {analysisResult.analysis.needsAppointment ? (
+                        <span className="text-green-600">✓ Yes</span>
+                      ) : (
+                        <span className="text-gray-600">✗ No</span>
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="bg-gray-50 p-3 rounded">
+                    <label className="text-xs text-gray-600">Urgency Level</label>
+                    <p className="font-medium capitalize">
+                      <span className={`badge ${
+                        analysisResult.analysis.urgencyLevel === 'emergency' 
+                          ? 'bg-red-100 text-red-800'
+                          : analysisResult.analysis.urgencyLevel === 'urgent'
+                          ? 'bg-orange-100 text-orange-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {analysisResult.analysis.urgencyLevel}
+                      </span>
+                    </p>
+                  </div>
+
+                  <div className="bg-gray-50 p-3 rounded">
+                    <label className="text-xs text-gray-600">Suggested Specialization</label>
+                    <p className="font-medium capitalize">{analysisResult.analysis.suggestedSpecialization}</p>
+                  </div>
+
+                  <div className="bg-gray-50 p-3 rounded">
+                    <label className="text-xs text-gray-600">Confidence</label>
+                    <p className="font-medium">{(analysisResult.analysis.confidence * 100).toFixed(0)}%</p>
+                  </div>
+                </div>
+
+                {analysisResult.analysis.symptoms && analysisResult.analysis.symptoms.length > 0 && (
+                  <div>
+                    <label className="text-sm text-gray-600 mb-2 block">Detected Symptoms</label>
+                    <div className="flex flex-wrap gap-2">
+                      {analysisResult.analysis.symptoms.map((symptom, idx) => (
+                        <span key={idx} className="badge bg-red-100 text-red-800 capitalize">
+                          {symptom}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {analysisResult.analysis.chiefComplaint && (
+                  <div>
+                    <label className="text-sm text-gray-600 mb-1 block">Chief Complaint</label>
+                    <p className="text-sm bg-gray-50 p-2 rounded capitalize">
+                      {analysisResult.analysis.chiefComplaint}
+                    </p>
+                  </div>
+                )}
+
+                {analysisResult.analysis.reasoning && (
+                  <div>
+                    <label className="text-sm text-gray-600 mb-1 block">AI Reasoning</label>
+                    <p className="text-sm bg-gray-50 p-3 rounded">
+                      {analysisResult.analysis.reasoning}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {analysisResult.appointment && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-gray-900 mb-3">Scheduled Appointment Details</h4>
+                
+                <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg mb-3">
+                  <p className="text-sm text-blue-800">
+                    <strong>✓ Appointment Created</strong> - View this appointment in the{' '}
+                    <a href="/appointments" className="underline font-medium hover:text-blue-900">
+                      Appointments page
+                    </a>
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-600">Doctor</label>
+                    <p className="font-medium">{analysisResult.doctor?.name}</p>
+                    <p className="text-xs text-gray-500">{analysisResult.doctor?.specialization}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">Date & Time</label>
+                    <p className="font-medium">
+                      {formatDate(analysisResult.appointment.appointmentDate)}
+                    </p>
+                    <p className="text-sm text-gray-600">{analysisResult.appointment.appointmentTime}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">Type</label>
+                    <p className="font-medium capitalize">{analysisResult.appointment.type}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">Status</label>
+                    <p className="font-medium capitalize">
+                      <span className="badge bg-green-100 text-green-800">
+                        {analysisResult.appointment.status}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
               </div>
             )}
 

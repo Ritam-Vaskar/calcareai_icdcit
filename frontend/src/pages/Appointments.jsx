@@ -189,7 +189,19 @@ export default function Appointments() {
     {
       key: 'patient',
       label: 'Patient',
-      render: (row) => row.patient?.name || 'N/A'
+      render: (row) => (
+        <div>
+          <div className="font-medium">{row.patient?.name || 'N/A'}</div>
+          {row.metadata?.aiScheduled === 'true' && (
+            <span className="text-xs text-blue-600 flex items-center gap-1 mt-1">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+              </svg>
+              AI Scheduled
+            </span>
+          )}
+        </div>
+      )
     },
     {
       key: 'doctor',
@@ -201,22 +213,42 @@ export default function Appointments() {
       label: 'Date & Time',
       render: (row) => `${formatDate(row.appointmentDate)} ${row.appointmentTime}`
     },
-    { key: 'type', label: 'Type' },
+    { 
+      key: 'type', 
+      label: 'Type',
+      render: (row) => (
+        <span className="capitalize">{row.type?.replace('-', ' ')}</span>
+      )
+    },
     {
       key: 'status',
       label: 'Status',
-      render: (row) => (
-        <span className={`badge ${getStatusColor(row.status)}`}>
-          {row.status}
-        </span>
-      )
+      render: (row) => {
+        const statusColors = {
+          scheduled: 'bg-blue-100 text-blue-800',
+          confirmed: 'bg-green-100 text-green-800',
+          rescheduled: 'bg-yellow-100 text-yellow-800',
+          cancelled: 'bg-red-100 text-red-800',
+          completed: 'bg-emerald-100 text-emerald-800',
+          'no-show': 'bg-red-100 text-red-800',
+          'no-response': 'bg-gray-100 text-gray-800'
+        };
+        const colorClass = statusColors[row.status] || 'bg-gray-100 text-gray-800';
+        const displayStatus = row.status ? row.status.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : 'Unknown';
+        
+        return (
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}>
+            {displayStatus}
+          </span>
+        );
+      }
     },
     {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          {(row.status === 'scheduled' || row.status === 'confirmed' || row.status === 'pending-confirmation') && (
+          {(row.status === 'scheduled' || row.status === 'confirmed' || row.status === 'rescheduled') && (
             <>
               <button
                 onClick={() => handleInitiateCall(row._id)}
@@ -272,8 +304,8 @@ export default function Appointments() {
 
         <div className="card">
           <div className="p-6">
-            <div className="mb-4 flex gap-2">
-              {['all', 'scheduled', 'confirmed', 'pending-confirmation', 'cancelled', 'completed'].map(status => (
+            <div className="mb-4 flex gap-2 flex-wrap">
+              {['all', 'scheduled', 'confirmed', 'rescheduled', 'completed', 'cancelled', 'no-show', 'no-response'].map(status => (
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
@@ -282,7 +314,7 @@ export default function Appointments() {
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                 >
-                  {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
+                  {status === 'all' ? 'All' : status.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                 </button>
               ))}
             </div>
