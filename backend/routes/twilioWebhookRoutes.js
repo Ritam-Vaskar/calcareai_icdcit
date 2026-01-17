@@ -243,21 +243,46 @@ router.post('/recording', async (req, res) => {
     try {
         const { CallSid, RecordingUrl, RecordingSid, RecordingDuration } = req.body;
 
-        await CallLog.findOneAndUpdate(
+        // Build the full recording URL with authentication
+        const accountSid = process.env.TWILIO_ACCOUNT_SID;
+        const authToken = process.env.TWILIO_AUTH_TOKEN;
+        let fullRecordingUrl = RecordingUrl;
+
+        // If RecordingUrl is relative, make it absolute
+        if (RecordingUrl && !RecordingUrl.startsWith('http')) {
+            fullRecordingUrl = `https://api.twilio.com${RecordingUrl}`;
+        }
+
+        // Add .mp3 extension if not present
+        if (fullRecordingUrl && !fullRecordingUrl.includes('.mp3')) {
+            fullRecordingUrl = `${fullRecordingUrl}.mp3`;
+        }
+
+        // Update call log with recording URL and metadata
+        const callLog = await CallLog.findOneAndUpdate(
             { callId: CallSid },
             {
-                recording: {
-                    url: RecordingUrl,
-                    sid: RecordingSid,
-                    duration: RecordingDuration
-                }
-            }
+                recording: fullRecordingUrl,
+                'metadata.recordingSid': RecordingSid,
+                'metadata.recordingDuration': RecordingDuration
+            },
+            { new: true }
         );
+
+        // Also compile transcript from conversation if not already set
+        if (callLog && callLog.conversation && callLog.conversation.length > 0 && !callLog.transcript) {
+            const transcript = callLog.conversation
+                .map(c => `${c.speaker.toUpperCase()}: ${c.text}`)
+                .join('\n');
+            
+            await CallLog.findByIdAndUpdate(callLog._id, { transcript });
+        }
 
         logger.info('Recording saved', {
             callSid: CallSid,
             recordingSid: RecordingSid,
-            duration: RecordingDuration
+            duration: RecordingDuration,
+            url: fullRecordingUrl
         });
 
         res.sendStatus(200);

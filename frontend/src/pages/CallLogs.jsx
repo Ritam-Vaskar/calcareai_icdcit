@@ -257,8 +257,14 @@ export default function CallLogs() {
               </div>
               <div>
                 <label className="text-sm text-gray-600">Date & Time</label>
-                <p className="font-medium">{formatDate(selectedCall.createdAt)}</p>
+                <p className="font-medium">{formatDate(selectedCall.createdAt || selectedCall.startTime)}</p>
               </div>
+              {selectedCall.outcome && (
+                <div>
+                  <label className="text-sm text-gray-600">Outcome</label>
+                  <p className="font-medium capitalize">{selectedCall.outcome.replace('-', ' ')}</p>
+                </div>
+              )}
               {selectedCall.aiMetadata?.intent && (
                 <div>
                   <label className="text-sm text-gray-600">Intent</label>
@@ -277,7 +283,41 @@ export default function CallLogs() {
               )}
             </div>
 
-            {selectedCall.transcript && (
+            {/* Conversation Display */}
+            {selectedCall.conversation && selectedCall.conversation.length > 0 && (
+              <div>
+                <label className="text-sm text-gray-600 mb-2 block">Conversation History</label>
+                <div className="bg-gray-50 p-4 rounded-lg max-h-64 overflow-y-auto space-y-2">
+                  {selectedCall.conversation.map((msg, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`p-2 rounded ${
+                        msg.speaker === 'patient' 
+                          ? 'bg-blue-100 ml-4' 
+                          : msg.speaker === 'ai' 
+                          ? 'bg-green-100 mr-4' 
+                          : 'bg-gray-100'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-xs font-semibold uppercase text-gray-700">
+                          {msg.speaker === 'patient' ? '👤 Patient' : msg.speaker === 'ai' ? '🤖 AI' : 'System'}
+                        </span>
+                        {msg.timestamp && (
+                          <span className="text-xs text-gray-500">
+                            {new Date(msg.timestamp).toLocaleTimeString()}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm">{msg.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Transcript Display (fallback if no conversation array) */}
+            {selectedCall.transcript && (!selectedCall.conversation || selectedCall.conversation.length === 0) && (
               <div>
                 <label className="text-sm text-gray-600 mb-2 block">Transcript</label>
                 <div className="bg-gray-50 p-4 rounded-lg max-h-64 overflow-y-auto">
@@ -286,13 +326,25 @@ export default function CallLogs() {
               </div>
             )}
 
+            {/* Recording Player */}
             {selectedCall.recording && (
               <div>
-                <label className="text-sm text-gray-600 mb-2 block">Recording</label>
+                <label className="text-sm text-gray-600 mb-2 block">Call Recording</label>
                 <audio controls className="w-full">
                   <source src={selectedCall.recording} type="audio/mpeg" />
+                  <source src={selectedCall.recording} type="audio/wav" />
                   Your browser does not support the audio element.
                 </audio>
+                <p className="text-xs text-gray-500 mt-1">
+                  <a 
+                    href={selectedCall.recording} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    Open recording in new tab
+                  </a>
+                </p>
               </div>
             )}
 
@@ -313,6 +365,21 @@ export default function CallLogs() {
                     <span key={idx} className="badge bg-blue-100 text-blue-800">
                       {phrase}
                     </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Additional metadata */}
+            {selectedCall.metadata && Object.keys(selectedCall.metadata).length > 0 && (
+              <div>
+                <label className="text-sm text-gray-600 mb-2 block">Additional Information</label>
+                <div className="bg-gray-50 p-3 rounded-lg text-sm">
+                  {Object.entries(selectedCall.metadata).map(([key, value]) => (
+                    <div key={key} className="flex justify-between py-1">
+                      <span className="font-medium capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
+                      <span>{String(value)}</span>
+                    </div>
                   ))}
                 </div>
               </div>

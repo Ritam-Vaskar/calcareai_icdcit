@@ -41,7 +41,9 @@ class TwilioService {
         statusCallbackMethod: 'POST',
         record: true,
         recordingStatusCallback: `${webhookUrl}/api/webhooks/twilio/recording`,
-        recordingStatusCallbackMethod: 'POST'
+        recordingStatusCallbackMethod: 'POST',
+        recordingChannels: 'dual',
+        recordingStatusCallbackEvent: ['completed']
       });
 
       logger.info('Twilio call initiated', {
@@ -175,7 +177,9 @@ class TwilioService {
         statusCallbackMethod: 'POST',
         record: true,
         recordingStatusCallback: `${webhookUrl}/api/webhooks/twilio/recording`,
-        recordingStatusCallbackMethod: 'POST'
+        recordingStatusCallbackMethod: 'POST',
+        recordingChannels: 'dual',
+        recordingStatusCallbackEvent: ['completed']
       });
 
       logger.info('Twilio patient call initiated', {

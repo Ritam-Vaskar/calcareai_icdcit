@@ -103,8 +103,8 @@ const callLogSchema = new mongoose.Schema({
     callData: mongoose.Schema.Types.Mixed
   },
   recording: {
-    url: String,
-    duration: Number
+    type: mongoose.Schema.Types.Mixed, // Can be string (URL) or object {url, sid, duration}
+    default: null
   },
   cost: {
     type: Number,

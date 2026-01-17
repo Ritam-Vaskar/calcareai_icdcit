@@ -313,14 +313,67 @@ class MediaStreamHandler {
             callSid: sessionData.callSid
         });
 
-        // Update call log
-        await CallLog.findOneAndUpdate(
-            { callId: sessionData.callSid },
-            {
-                status: 'completed',
-                endTime: new Date()
+        // Compile transcript from conversation
+        try {
+            const callLog = await CallLog.findOne({ callId: sessionData.callSid });
+            
+            if (callLog && callLog.conversation && callLog.conversation.length > 0) {
+                // Compile full transcript from conversation array
+                const transcript = callLog.conversation
+                    .map(c => `${c.speaker.toUpperCase()}: ${c.text}`)
+                    .join('\n');
+                
+                // Determine outcome based on conversation
+                let outcome = callLog.outcome || 'no-action';
+                let sentimentData = { sentiment: 'neutral', sentimentScore: 0 };
+                
+                // Simple sentiment analysis
+                const fullText = callLog.conversation.map(c => c.text.toLowerCase()).join(' ');
+                if (fullText.includes('confirm') || fullText.includes('yes') || fullText.includes('good') || fullText.includes('better')) {
+                    sentimentData = { sentiment: 'positive', sentimentScore: 0.7 };
+                    if (sessionData.appointmentId && fullText.includes('confirm')) {
+                        outcome = 'appointment-confirmed';
+                    } else if (sessionData.followUpId || sessionData.patientId) {
+                        outcome = 'follow-up-completed';
+                    }
+                } else if (fullText.includes('cancel') || fullText.includes('no')) {
+                    sentimentData = { sentiment: 'negative', sentimentScore: -0.5 };
+                    if (fullText.includes('cancel')) {
+                        outcome = 'appointment-cancelled';
+                    }
+                }
+                
+                // Update call log with compiled data
+                await CallLog.findOneAndUpdate(
+                    { callId: sessionData.callSid },
+                    {
+                        status: 'completed',
+                        endTime: new Date(),
+                        transcript: transcript,
+                        outcome: outcome,
+                        sentiment: sentimentData.sentiment,
+                        sentimentScore: sentimentData.sentimentScore
+                    }
+                );
+                
+                logger.info('Call log updated with transcript and outcome', {
+                    callSid: sessionData.callSid,
+                    transcriptLength: transcript.length,
+                    outcome
+                });
+            } else {
+                // No conversation, just update status
+                await CallLog.findOneAndUpdate(
+                    { callId: sessionData.callSid },
+                    {
+                        status: 'completed',
+                        endTime: new Date()
+                    }
+                );
             }
-        );
+        } catch (error) {
+            logger.error('Error updating call log on stop', error);
+        }
 
         this.activeSessions.delete(sessionData.streamSid);
     }

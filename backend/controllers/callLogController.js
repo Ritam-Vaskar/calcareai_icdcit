@@ -40,13 +40,42 @@ exports.getCallLogs = async (req, res, next) => {
       .skip(skip)
       .limit(parseInt(limit));
 
+    // Format the calls for frontend consumption
+    const formattedCalls = calls.map(call => {
+      const callObj = call.toObject();
+      
+      // Replace Twilio recording URL with proxied backend URL
+      if (callObj.recording) {
+        const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+        callObj.recording = `${backendUrl}/api/recordings/${callObj._id}`;
+      }
+      
+      // Compile transcript if not present but conversation exists
+      if (!callObj.transcript && callObj.conversation && callObj.conversation.length > 0) {
+        callObj.transcript = callObj.conversation
+          .map(c => `${c.speaker.toUpperCase()}: ${c.text}`)
+          .join('\n');
+      }
+      
+      // Format AI metadata for easier frontend access
+      if (callObj.intent || callObj.sentiment) {
+        callObj.aiMetadata = {
+          intent: callObj.intent?.detected,
+          sentiment: callObj.sentiment,
+          sentimentScore: callObj.sentimentScore
+        };
+      }
+      
+      return callObj;
+    });
+
     const total = await CallLog.countDocuments(query);
     const pages = Math.ceil(total / limit);
 
     res.status(200).json({
       success: true,
       data: {
-        callLogs: calls,
+        callLogs: formattedCalls,
         pagination: {
           total,
           pages,
@@ -77,9 +106,34 @@ exports.getCallLog = async (req, res, next) => {
       });
     }
 
+    // Format call for frontend
+    const callObj = call.toObject();
+    
+    // Replace Twilio recording URL with proxied backend URL
+    if (callObj.recording) {
+      const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+      callObj.recording = `${backendUrl}/api/recordings/${callObj._id}`;
+    }
+    
+    // Compile transcript if not present but conversation exists
+    if (!callObj.transcript && callObj.conversation && callObj.conversation.length > 0) {
+      callObj.transcript = callObj.conversation
+        .map(c => `${c.speaker.toUpperCase()}: ${c.text}`)
+        .join('\n');
+    }
+    
+    // Format AI metadata
+    if (callObj.intent || callObj.sentiment) {
+      callObj.aiMetadata = {
+        intent: callObj.intent?.detected,
+        sentiment: callObj.sentiment,
+        sentimentScore: callObj.sentimentScore
+      };
+    }
+
     res.status(200).json({
       success: true,
-      data: { call }
+      data: { call: callObj }
     });
   } catch (error) {
     next(error);

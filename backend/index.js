@@ -59,6 +59,7 @@ app.use('/api/doctors', require('./routes/doctorRoutes'));
 app.use('/api/appointments', require('./routes/appointmentRoutes'));
 app.use('/api/calls', require('./routes/callLogRoutes'));
 app.use('/api/followups', require('./routes/followUpRoutes'));
+app.use('/api/recordings', require('./routes/recordingRoutes'));
 app.use('/api/webhooks/twilio', require('./routes/twilioWebhookRoutes'));
 
 // Root endpoint
