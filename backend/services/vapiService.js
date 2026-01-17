@@ -7,7 +7,8 @@ class VapiService {
     this.baseURL = 'https://api.vapi.ai';
     this.assistantId = process.env.VAPI_ASSISTANT_ID;
     this.phoneNumber = process.env.VAPI_PHONE_NUMBER;
-    
+    this.githubToken = process.env.GITHUB_TOKEN;
+
     this.client = axios.create({
       baseURL: this.baseURL,
       headers: {
@@ -29,8 +30,8 @@ class VapiService {
           voiceId: config.voiceId || 'en-US-JennyNeural'
         },
         model: {
-          provider: 'openai',
-          model: 'gpt-4',
+          provider: 'google',
+          model: 'gemini-1.5-flash',
           messages: config.systemMessages || this.getDefaultSystemMessages(),
           temperature: 0.7
         },
@@ -44,7 +45,7 @@ class VapiService {
         endCallPhrases: ['goodbye', 'bye', 'thank you bye'],
         ...config
       });
-      
+
       logger.info('Assistant created', { assistantId: response.data.id });
       return response.data;
     } catch (error) {
@@ -71,25 +72,26 @@ class VapiService {
         payload.assistant = {
           ...assistantConfig.overrides,
           model: {
-            provider: 'openai',
-            model: 'gpt-4',
-            messages: assistantConfig.systemMessages || this.getDefaultSystemMessages()
+            provider: 'google',
+            model: 'gemini-1.5-flash',
+            messages: assistantConfig.systemMessages || this.getDefaultSystemMessages(),
+            temperature: 0.7
           }
         };
       }
 
       const response = await this.client.post('/call/phone', payload);
-      
-      logger.info('Call initiated', { 
-        callId: response.data.id, 
-        phoneNumber 
+
+      logger.info('Call initiated', {
+        callId: response.data.id,
+        phoneNumber
       });
-      
+
       return response.data;
     } catch (error) {
-      logger.error('Error making call', { 
+      logger.error('Error making call', {
         error: error.response?.data || error.message,
-        phoneNumber 
+        phoneNumber
       });
       throw error;
     }
@@ -165,7 +167,7 @@ If the patient has questions you can't answer, offer to have staff call them bac
    */
   getFollowUpMessages(patientName, followUpType, questions) {
     const questionsList = questions.map((q, i) => `${i + 1}. ${q.question}`).join('\n');
-    
+
     return [
       {
         role: 'system',
@@ -279,7 +281,7 @@ Never provide medical advice - only handle administrative tasks and basic querie
       'marathi': 'mr-IN-AarohiNeural',
       'gujarati': 'gu-IN-DhwaniNeural'
     };
-    
+
     return voices[language?.toLowerCase()] || voices['english'];
   }
 
@@ -288,7 +290,7 @@ Never provide medical advice - only handle administrative tasks and basic querie
    */
   extractIntent(transcript) {
     const lowerTranscript = transcript.toLowerCase();
-    
+
     const intents = {
       confirm: ['yes', 'confirm', 'sure', 'okay', 'alright', 'correct', 'that works'],
       reschedule: ['reschedule', 'change', 'different time', 'another day', 'postpone'],
@@ -312,12 +314,12 @@ Never provide medical advice - only handle administrative tasks and basic querie
   analyzeSentiment(transcript) {
     const positiveWords = ['good', 'great', 'thanks', 'thank you', 'fine', 'well', 'better', 'happy'];
     const negativeWords = ['bad', 'pain', 'worse', 'problem', 'issue', 'concern', 'worried', 'not good'];
-    
+
     const lowerTranscript = transcript.toLowerCase();
-    
+
     const positiveCount = positiveWords.filter(word => lowerTranscript.includes(word)).length;
     const negativeCount = negativeWords.filter(word => lowerTranscript.includes(word)).length;
-    
+
     if (positiveCount > negativeCount) {
       return { sentiment: 'positive', score: 0.7 };
     } else if (negativeCount > positiveCount) {
