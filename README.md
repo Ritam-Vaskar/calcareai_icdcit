@@ -37,7 +37,7 @@ carecall-ai/
 │   ├── services/        # Business logic (Vapi, Cron)
 │   ├── middleware/      # Auth, validation, error handling
 │   ├── webhooks/        # Vapi webhook handlers
-│   ├── utils/           # Helpers, logger, seed data
+│   ├── utils/           # Helpers, logger
 │   └── index.js         # Server entry point
 ├── frontend/
 │   ├── src/
@@ -58,7 +58,7 @@ carecall-ai/
 - Node.js 18+ 
 - MongoDB 7.0+
 - Vapi AI Account ([vapi.ai](https://vapi.ai))
-- OpenAI API Key
+- Google Gemini API Key
 
 ### 1. Clone and Install
 
@@ -87,22 +87,10 @@ copy .env.example .env
 # - MongoDB URI
 # - JWT secrets
 # - Vapi AI credentials
-# - OpenAI API key
+# - Google Gemini API key
 ```
 
-### 3. Seed Database (Demo Data)
-
-```bash
-cd backend
-npm run seed
-```
-
-This creates:
-- Admin user: `admin@carecall.ai` / `admin123`
-- Staff user: `staff@carecall.ai` / `staff123`
-- Sample patients, doctors, appointments, and calls
-
-### 4. Start Development Servers
+### 3. Start Development Servers
 
 ```bash
 # Terminal 1 - Backend (port 5000)
@@ -139,18 +127,6 @@ Services will be available at:
 - Backend API: `http://localhost:5000`
 - MongoDB: `localhost:27017`
 
-### Individual Docker Builds
-
-```bash
-# Build backend
-cd backend
-docker build -t carecall-backend .
-
-# Build frontend
-cd frontend
-docker build -t carecall-frontend .
-```
-
 ## 🔧 Configuration
 
 ### Vapi AI Setup
@@ -170,7 +146,7 @@ Key configurations in `.env`:
 MONGODB_URI=mongodb://localhost:27017/carecall-ai
 JWT_SECRET=min-32-character-secret
 VAPI_API_KEY=your_vapi_key
-OPENAI_API_KEY=your_openai_key
+GOOGLE_API_KEY=your_google_gemini_key
 
 # Optional but recommended
 VAPI_PHONE_NUMBER=vapi_phone_id
@@ -264,25 +240,16 @@ POST /api/webhooks/vapi            # Vapi callback endpoint
 
 ## 🧪 Testing
 
-### Demo Flow
-
-1. **Login**: Use `admin@carecall.ai` / `admin123`
-2. **View Dashboard**: See demo stats and charts
-3. **Create Patient**: Add a test patient with your phone number
-4. **Create Appointment**: Schedule appointment with any doctor
-5. **Initiate Call**: Click "Call" button on appointment
-6. **Monitor**: Check call logs for transcript and outcome
-
 ### Manual Testing
 
 ```bash
 # Health check
 curl http://localhost:5000/health
 
-# Login
+# Login (create user first via UI)
 curl -X POST http://localhost:5000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@carecall.ai","password":"admin123"}'
+  -d '{"email":"your@email.com","password":"yourpassword"}'
 ```
 
 ## 📊 Architecture
@@ -346,9 +313,6 @@ npm install -g pm2
 cd backend
 pm2 start index.js --name carecall-backend
 
-# Start with environment
-pm2 start index.js --name carecall-backend --env production
-
 # Monitor
 pm2 monit
 
@@ -390,14 +354,12 @@ Built by CareCall AI Team
 ## 🙏 Acknowledgments
 
 - Vapi AI for voice agent infrastructure
-- OpenAI for GPT-4 conversational AI
+- Google Gemini for conversational AI
 - MongoDB for flexible healthcare data storage
 - React and TailwindCSS for modern UI
 
 ---
 
 **For support**: Open an issue or contact the team
-
-**Live Demo**: [Your demo URL]
 
 **Hackathon Ready** ✅ **Production Inspired** ✅ **Fully Functional** ✅
