@@ -64,13 +64,22 @@ const patientSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'inactive', 'archived'],
+    enum: ['active', 'inactive', 'archived', 'completed'],
     default: 'active'
   },
   notes: String,
   tags: [String],
   lastVisit: Date,
-  nextFollowUp: Date
+  nextFollowUp: Date,
+  latestFollowUpDetails: {
+    doctorReport: String,
+    purpose: String,
+    scheduledDate: Date,
+    doctor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Doctor'
+    }
+  }
 }, {
   timestamps: true
 });

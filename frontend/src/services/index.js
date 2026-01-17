@@ -12,7 +12,7 @@ const authService = {
   },
 
   logout: async () => {
-    const { data} = await api.post('/auth/logout');
+    const { data } = await api.post('/auth/logout');
     return data;
   },
 
@@ -55,6 +55,11 @@ const patientService = {
 
   getStats: async () => {
     const { data } = await api.get('/patients/stats');
+    return data;
+  },
+
+  initiateFollowUpCall: async (id) => {
+    const { data } = await api.post(`/patients/${id}/followup-call`);
     return data;
   }
 };
@@ -123,15 +128,15 @@ const appointmentService = {
   },
 
   cancelAppointment: async (id, reason) => {
-    const { data } = await api.put(`/appointments/${id}/cancel`, { 
+    const { data } = await api.put(`/appointments/${id}/cancel`, {
       cancelledBy: 'admin',
-      cancellationReason: reason 
+      cancellationReason: reason
     });
     return data;
   },
 
   rescheduleAppointment: async (id, newDate, newTime) => {
-    const { data } = await api.post(`/appointments/${id}/reschedule`, { 
+    const { data } = await api.post(`/appointments/${id}/reschedule`, {
       appointmentDate: newDate,
       appointmentTime: newTime
     });
@@ -145,6 +150,11 @@ const appointmentService = {
 
   getStats: async () => {
     const { data } = await api.get('/appointments/stats');
+    return data;
+  },
+
+  completeAppointment: async (id, completionData) => {
+    const { data } = await api.post(`/appointments/${id}/complete`, completionData);
     return data;
   }
 };
@@ -171,7 +181,7 @@ const callLogService = {
   },
 
   exportLogs: async (params) => {
-    const response = await api.get('/calls/export', { 
+    const response = await api.get('/calls/export', {
       params,
       responseType: 'blob'
     });

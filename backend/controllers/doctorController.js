@@ -29,14 +29,19 @@ exports.getDoctors = async (req, res, next) => {
       .limit(parseInt(limit));
 
     const total = await Doctor.countDocuments(query);
+    const pages = Math.ceil(total / limit);
 
     res.status(200).json({
       success: true,
-      count: doctors.length,
-      total,
-      pages: Math.ceil(total / limit),
-      currentPage: parseInt(page),
-      data: { doctors }
+      data: {
+        doctors,
+        pagination: {
+          total,
+          pages,
+          page: parseInt(page),
+          limit: parseInt(limit)
+        }
+      }
     });
   } catch (error) {
     next(error);

@@ -33,14 +33,19 @@ exports.getPatients = async (req, res, next) => {
       .limit(parseInt(limit));
 
     const total = await Patient.countDocuments(query);
+    const pages = Math.ceil(total / limit);
 
     res.status(200).json({
       success: true,
-      count: patients.length,
-      total,
-      pages: Math.ceil(total / limit),
-      currentPage: parseInt(page),
-      data: { patients }
+      data: {
+        patients,
+        pagination: {
+          total,
+          pages,
+          page: parseInt(page),
+          limit: parseInt(limit)
+        }
+      }
     });
   } catch (error) {
     next(error);
@@ -227,6 +232,64 @@ exports.getPatientStats = async (req, res, next) => {
       }
     });
   } catch (error) {
+    next(error);
+  }
+};
+// @desc    Initiate AI follow-up call for patient
+// @route   POST /api/patients/:id/followup-call
+// @access  Private
+exports.initiateFollowUpCall = async (req, res, next) => {
+  try {
+    const patient = await Patient.findById(req.params.id);
+
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        message: 'Patient not found'
+      });
+    }
+
+    if (!patient.phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Patient phone number is missing'
+      });
+    }
+
+    const twilioService = require('../services/twilioService');
+    const CallLog = require('../models/CallLog');
+
+    if (!twilioService.isConfigured()) {
+      return res.status(500).json({
+        success: false,
+        message: 'Twilio is not configured'
+      });
+    }
+
+    logger.info('Initiating patient follow-up call', { patientId: patient._id });
+
+    const callData = await twilioService.makePatientCall(patient);
+
+    // Create call log
+    const callLog = await CallLog.create({
+      callId: callData.id,
+      patient: patient._id,
+      callType: 'follow-up',
+      status: 'initiated',
+      language: patient.language || 'en-IN',
+      aiProvider: 'twilio'
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Follow-up call initiated successfully',
+      data: {
+        callLog,
+        call: callData
+      }
+    });
+  } catch (error) {
+    logger.error('Error initiating patient call', error);
     next(error);
   }
 };

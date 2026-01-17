@@ -2,7 +2,7 @@ const Appointment = require('../models/Appointment');
 const Patient = require('../models/Patient');
 const Doctor = require('../models/Doctor');
 const CallLog = require('../models/CallLog');
-const vapiService = require('../services/vapiService');
+const FollowUp = require('../models/FollowUp');
 const logger = require('../utils/logger');
 
 // @desc    Get all appointments
@@ -43,14 +43,19 @@ exports.getAppointments = async (req, res, next) => {
       .limit(parseInt(limit));
 
     const total = await Appointment.countDocuments(query);
+    const pages = Math.ceil(total / limit);
 
     res.status(200).json({
       success: true,
-      count: appointments.length,
-      total,
-      pages: Math.ceil(total / limit),
-      currentPage: parseInt(page),
-      data: { appointments }
+      data: {
+        appointments,
+        pagination: {
+          total,
+          pages,
+          page: parseInt(page),
+          limit: parseInt(limit)
+        }
+      }
     });
   } catch (error) {
     next(error);
@@ -136,11 +141,13 @@ exports.createAppointment = async (req, res, next) => {
     await appointment.populate('patient doctor');
 
     logger.info('Appointment created', { appointmentId: appointment._id });
-    logger.audit('APPOINTMENT_CREATED', req.user.email, {
-      appointmentId: appointment._id,
-      patientName: patientDoc.name,
-      doctorName: doctorDoc.name
-    });
+    if (req.user) {
+      logger.audit('APPOINTMENT_CREATED', req.user.email, {
+        appointmentId: appointment._id,
+        patientName: patientDoc.name,
+        doctorName: doctorDoc.name
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -171,9 +178,11 @@ exports.updateAppointment = async (req, res, next) => {
     }
 
     logger.info('Appointment updated', { appointmentId: appointment._id });
-    logger.audit('APPOINTMENT_UPDATED', req.user.email, {
-      appointmentId: appointment._id
-    });
+    if (req.user) {
+      logger.audit('APPOINTMENT_UPDATED', req.user.email, {
+        appointmentId: appointment._id
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -207,10 +216,12 @@ exports.cancelAppointment = async (req, res, next) => {
     await appointment.save();
 
     logger.info('Appointment cancelled', { appointmentId: appointment._id });
-    logger.audit('APPOINTMENT_CANCELLED', req.user.email, {
-      appointmentId: appointment._id,
-      reason: cancellationReason
-    });
+    if (req.user) {
+      logger.audit('APPOINTMENT_CANCELLED', req.user.email, {
+        appointmentId: appointment._id,
+        reason: cancellationReason
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -268,10 +279,12 @@ exports.rescheduleAppointment = async (req, res, next) => {
       oldId: oldAppointment._id,
       newId: newAppointment._id
     });
-    logger.audit('APPOINTMENT_RESCHEDULED', req.user.email, {
-      oldId: oldAppointment._id,
-      newId: newAppointment._id
-    });
+    if (req.user) {
+      logger.audit('APPOINTMENT_RESCHEDULED', req.user.email, {
+        oldId: oldAppointment._id,
+        newId: newAppointment._id
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -307,25 +320,34 @@ exports.initiateAppointmentCall = async (req, res, next) => {
       });
     }
 
-    // Initiate Vapi call
-    const vapiCall = await vapiService.makeAppointmentCall(
+    // Determine which service to use
+    // Use Twilio for calling
+    const twilioService = require('../services/twilioService');
+
+    if (!twilioService.isConfigured()) {
+      return res.status(500).json({
+        success: false,
+        message: 'Twilio is not configured',
+        suggestion: 'Please add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER to your .env file.'
+      });
+    }
+
+    logger.info('Initiating Twilio call', { appointmentId: appointment._id });
+
+    const callData = await twilioService.makeAppointmentCall(
       appointment.patient,
       appointment
     );
 
     // Create call log
     const callLog = await CallLog.create({
-      callId: vapiCall.id,
+      callId: callData.id,
       patient: appointment.patient._id,
       appointment: appointment._id,
       callType: 'appointment-confirmation',
       status: 'initiated',
       language: appointment.patient.language,
-      aiProvider: 'vapi',
-      vapiData: {
-        assistantId: vapiCall.assistantId,
-        callData: vapiCall
-      }
+      aiProvider: 'twilio'
     });
 
     // Update appointment
@@ -334,40 +356,25 @@ exports.initiateAppointmentCall = async (req, res, next) => {
     appointment.lastCallDate = new Date();
     await appointment.save();
 
-    logger.info('AI call initiated', {
+    logger.info('Twilio call initiated successfully', {
       appointmentId: appointment._id,
-      callId: vapiCall.id
+      callId: callData.id
     });
 
     res.status(200).json({
       success: true,
-      message: 'AI call initiated successfully',
+      message: 'Call initiated successfully',
       data: {
         callLog,
-        vapiCall
+        call: callData
       }
     });
   } catch (error) {
     logger.error('Error initiating call', error);
 
-    // Check for specific error types
-    const errorMessage = error.message || 'Failed to initiate call';
-    const isInternationalError = errorMessage.includes('international') ||
-      errorMessage.includes('Free Vapi numbers');
-
-    if (isInternationalError) {
-      return res.status(400).json({
-        success: false,
-        message: 'International calling not supported',
-        error: errorMessage,
-        suggestion: 'Please update patient phone to US format (+1XXXXXXXXXX) or upgrade Vapi plan for international calling. See INTERNATIONAL_CALLING_SOLUTIONS.md for alternatives.'
-      });
-    }
-
-    // Generic error response
     res.status(error.status || 500).json({
       success: false,
-      message: errorMessage,
+      message: error.message || 'Failed to initiate call',
       error: error.details || error.message
     });
   }
@@ -410,6 +417,65 @@ exports.getAppointmentStats = async (req, res, next) => {
       }
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Complete appointment and create follow-up
+// @route   POST /api/appointments/:id/complete
+// @access  Private
+exports.completeAppointment = async (req, res, next) => {
+  try {
+    const { notes, report, followUpRequired, followUpDate, followUpPurpose } = req.body;
+
+    const appointment = await Appointment.findById(req.params.id)
+      .populate('patient')
+      .populate('doctor');
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+
+    appointment.status = 'completed';
+    appointment.notes = notes || appointment.notes;
+    // Store report in notes
+    if (report) {
+      appointment.notes = (appointment.notes || '') + '\n\nDOCTOR REPORT:\n' + report;
+    }
+    await appointment.save();
+
+    // Update patient status and follow-up details
+    if (appointment.patient) {
+      const updateData = { status: 'completed' };
+
+      if (followUpRequired) {
+        updateData.nextFollowUp = followUpDate || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+        updateData.latestFollowUpDetails = {
+          doctorReport: report,
+          purpose: followUpPurpose || 'Post-visit check-up',
+          scheduledDate: updateData.nextFollowUp,
+          doctor: appointment.doctor._id
+        };
+      }
+
+      await Patient.findByIdAndUpdate(appointment.patient._id, updateData);
+    }
+
+    logger.info('Appointment marked as completed', { appointmentId: appointment._id });
+
+    res.status(200).json({
+      success: true,
+      message: 'Appointment completed successfully',
+      data: {
+        appointment,
+        followUp
+      }
+    });
+  } catch (error) {
+    logger.error('Error completing appointment', error);
     next(error);
   }
 };

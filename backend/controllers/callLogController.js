@@ -19,11 +19,11 @@ exports.getCallLogs = async (req, res, next) => {
     } = req.query;
 
     const query = {};
-    
+
     if (patient) query.patient = patient;
     if (callType) query.callType = callType;
     if (status) query.status = status;
-    
+
     if (dateFrom || dateTo) {
       query.startTime = {};
       if (dateFrom) query.startTime.$gte = new Date(dateFrom);
@@ -41,14 +41,19 @@ exports.getCallLogs = async (req, res, next) => {
       .limit(parseInt(limit));
 
     const total = await CallLog.countDocuments(query);
+    const pages = Math.ceil(total / limit);
 
     res.status(200).json({
       success: true,
-      count: calls.length,
-      total,
-      pages: Math.ceil(total / limit),
-      currentPage: parseInt(page),
-      data: { calls }
+      data: {
+        callLogs: calls,
+        pagination: {
+          total,
+          pages,
+          page: parseInt(page),
+          limit: parseInt(limit)
+        }
+      }
     });
   } catch (error) {
     next(error);
@@ -87,7 +92,7 @@ exports.getCallLog = async (req, res, next) => {
 exports.getCallAnalytics = async (req, res, next) => {
   try {
     const totalCalls = await CallLog.countDocuments();
-    
+
     const callsByStatus = await CallLog.aggregate([
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);

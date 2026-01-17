@@ -26,7 +26,7 @@ const logger = {
       JSON.stringify(log) + '\n'
     );
   },
-  
+
   error: (message, error = {}) => {
     const log = {
       timestamp: getTimestamp(),
@@ -41,7 +41,7 @@ const logger = {
       JSON.stringify(log) + '\n'
     );
   },
-  
+
   warn: (message, meta = {}) => {
     const log = {
       timestamp: getTimestamp(),
@@ -55,7 +55,7 @@ const logger = {
       JSON.stringify(log) + '\n'
     );
   },
-  
+
   audit: (action, user, details = {}) => {
     const log = {
       timestamp: getTimestamp(),
@@ -67,6 +67,12 @@ const logger = {
       path.join(logDir, 'audit.log'),
       JSON.stringify(log) + '\n'
     );
+  },
+
+  debug: (message, meta = {}) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.debug(`[DEBUG] ${message}`, meta);
+    }
   }
 };
 

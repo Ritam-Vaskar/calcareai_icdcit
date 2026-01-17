@@ -46,6 +46,23 @@ const callLogSchema = new mongoose.Schema({
   transcript: {
     type: String
   },
+  // Full conversation history with timestamps
+  conversation: [{
+    speaker: {
+      type: String,
+      enum: ['patient', 'ai', 'system'],
+      required: true
+    },
+    text: {
+      type: String,
+      required: true
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    confidence: Number
+  }],
   intent: {
     detected: {
       type: String,

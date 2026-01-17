@@ -8,13 +8,14 @@ const {
   cancelAppointment,
   rescheduleAppointment,
   initiateAppointmentCall,
-  getAppointmentStats
+  getAppointmentStats,
+  completeAppointment
 } = require('../controllers/appointmentController');
 const { protect } = require('../middleware/auth');
-const { 
-  appointmentValidation, 
-  validateId, 
-  validate 
+const {
+  appointmentValidation,
+  validateId,
+  validate
 } = require('../middleware/validation');
 
 router.use(protect);
@@ -27,5 +28,6 @@ router.put('/:id', validateId, validate, updateAppointment);
 router.put('/:id/cancel', validateId, validate, cancelAppointment);
 router.post('/:id/reschedule', validateId, validate, rescheduleAppointment);
 router.post('/:id/call', validateId, validate, initiateAppointmentCall);
+router.post('/:id/complete', validateId, validate, completeAppointment);
 
 module.exports = router;
