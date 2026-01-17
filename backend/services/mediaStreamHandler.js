@@ -6,6 +6,13 @@ const Doctor = require('../models/Doctor');
 const CallLog = require('../models/CallLog');
 const logger = require('../utils/logger');
 
+// Call states for proper conversation flow
+const CallState = {
+    LISTENING: 'LISTENING',
+    THINKING: 'THINKING',
+    SPEAKING: 'SPEAKING'
+};
+
 class MediaStreamHandler {
     constructor() {
         this.activeSessions = new Map();
@@ -24,7 +31,11 @@ class MediaStreamHandler {
             followUpId: null,
             patientId: null,
             audioBuffer: [],
-            conversationContext: null
+            conversationContext: null,
+            callState: CallState.LISTENING,
+            llmInProgress: false,
+            lastTranscriptTime: null,
+            silenceTimeout: null
         };
 
         ws.on('message', async (message) => {
@@ -71,21 +82,19 @@ class MediaStreamHandler {
         sessionData.streamSid = msg.streamSid;
         sessionData.callSid = msg.start.callSid;
 
-        // Extract IDs from custom parameters
-        const customParams = msg.start.customParameters;
-        sessionData.appointmentId = customParams?.appointmentId;
-        sessionData.followUpId = customParams?.followUpId;
-        sessionData.patientId = customParams?.patientId;
+        // Extract custom parameters
+        const customParams = msg.start.customParameters || {};
+        sessionData.appointmentId = customParams.appointmentId;
+        sessionData.followUpId = customParams.followUpId;
+        sessionData.patientId = customParams.patientId;
 
         logger.info('Stream started', {
             streamSid: sessionData.streamSid,
             callSid: sessionData.callSid,
-            appointmentId: sessionData.appointmentId,
-            followUpId: sessionData.followUpId,
             patientId: sessionData.patientId
         });
 
-        // Load context
+        // Load conversation context
         try {
             if (sessionData.patientId) {
                 const patient = await Patient.findById(sessionData.patientId)
@@ -94,8 +103,8 @@ class MediaStreamHandler {
                 if (patient) {
                     sessionData.conversationContext = {
                         patient: patient,
-                        doctor: patient.assignedDoctor || (patient.latestFollowUpDetails?.doctor ? await Doctor.findById(patient.latestFollowUpDetails.doctor) : null),
-                        followUp: patient.latestFollowUpDetails
+                        followUp: patient.latestFollowUpDetails,
+                        doctor: patient.assignedDoctor || patient.latestFollowUpDetails?.doctor
                     };
                 }
             } else if (sessionData.followUpId) {
@@ -130,118 +139,144 @@ class MediaStreamHandler {
         }
 
         this.activeSessions.set(sessionData.streamSid, sessionData);
-
-        logger.info('Stream context loaded and ready');
+        logger.info('Stream context loaded, state: LISTENING');
     }
 
     /**
-     * Handle incoming audio media
+     * Handle incoming media (audio from caller)
      */
     async handleMedia(msg, sessionData, ws) {
-        // Collect audio chunks
+        // CRITICAL: Drop audio if AI is thinking or speaking
+        if (sessionData.callState !== CallState.LISTENING) {
+            logger.debug('Dropping audio - AI is busy', { state: sessionData.callState });
+            return;
+        }
+
+        // CRITICAL: Prevent duplicate LLM calls
+        if (sessionData.llmInProgress) {
+            logger.debug('Dropping audio - LLM already processing');
+            return;
+        }
+
         const audioPayload = msg.media.payload;
+
+        // Buffer audio chunks
         if (!sessionData.audioBuffer) sessionData.audioBuffer = [];
         sessionData.audioBuffer.push(Buffer.from(audioPayload, 'base64'));
 
-        // Process every 6 seconds of audio to avoid rate limits
-        if (sessionData.audioBuffer.length >= 48) { // ~6 seconds at 8kHz
+        // Process every 6 seconds of audio (48 chunks at 8kHz)
+        // This gives user time to speak complete sentences
+        if (sessionData.audioBuffer.length >= 48) {
             await this.processAudioBuffer(sessionData, ws);
             sessionData.audioBuffer = [];
         }
     }
 
     /**
-     * Process collected audio buffer
+     * Process collected audio buffer - ONE SHOT ONLY
      */
     async processAudioBuffer(sessionData, ws) {
+        // GUARD: Prevent duplicate processing
+        if (sessionData.llmInProgress) {
+            logger.warn('LLM already in progress, skipping');
+            return;
+        }
+
+        if (!aiConversationService.isConfigured()) {
+            logger.warn('AI conversation service not configured');
+            return;
+        }
+
         try {
-            if (!aiConversationService.isConfigured()) {
-                logger.warn('AI conversation service not configured');
-                return;
-            }
+            // Set state to THINKING immediately
+            sessionData.callState = CallState.THINKING;
+            sessionData.llmInProgress = true;
 
-            if (!sessionData.conversationContext) {
-                logger.warn('No conversation context available');
-                return;
-            }
+            logger.info('Processing audio - State: THINKING');
 
-            // Combine audio chunks
-            const audioBuffer = Buffer.concat(sessionData.audioBuffer);
+            // Concatenate audio buffers
+            const audioData = Buffer.concat(sessionData.audioBuffer);
 
-            // Process with AI
+            // Process audio through AI service (STT + LLM + TTS)
             const result = await aiConversationService.processAudio(
-                audioBuffer,
+                audioData,
                 sessionData.conversationContext
             );
 
-            // If no transcript was detected, don't respond
-            if (!result.transcript || result.transcript.trim().length === 0) {
-                logger.debug('No transcript detected, skipping response');
+            // Skip if no transcript detected
+            if (!result.transcript || result.transcript.trim() === '') {
+                logger.debug('No transcript detected, resuming listening');
+                sessionData.callState = CallState.LISTENING;
+                sessionData.llmInProgress = false;
                 return;
             }
 
-            logger.info('AI processed audio', {
+            logger.info('Transcript received', {
                 transcript: result.transcript,
                 response: result.aiResponse
             });
 
-            // Update call log with transcript
+            // Set state to SPEAKING
+            sessionData.callState = CallState.SPEAKING;
+
+            // Send audio response to Twilio
+            await this.sendAudioResponse(ws, result.aiResponse, result.audioBuffer, sessionData);
+
+            // Log conversation
             await CallLog.findOneAndUpdate(
                 { callId: sessionData.callSid },
                 {
                     $push: {
-                        conversation: {
-                            speaker: 'patient',
-                            text: result.transcript,
-                            timestamp: new Date()
-                        }
+                        conversation: [
+                            {
+                                speaker: 'patient',
+                                text: result.transcript,
+                                timestamp: new Date()
+                            },
+                            {
+                                speaker: 'ai',
+                                text: result.aiResponse,
+                                timestamp: new Date()
+                            }
+                        ]
                     }
                 }
             );
 
-            // Send AI response back to call
-            await this.sendAudioResponse(ws, result.aiResponse, sessionData);
-
-            // Detect intent and update record if needed
-            const intent = aiConversationService.detectIntent(result.transcript);
-
-            if (sessionData.appointmentId && intent.intent === 'confirm') {
-                await Appointment.findByIdAndUpdate(sessionData.appointmentId, {
-                    status: 'confirmed'
-                });
-            } else if (sessionData.patientId) {
+            // Update follow-up status if applicable
+            if (sessionData.patientId) {
+                const intent = aiConversationService.detectIntent(result.transcript);
                 if (intent.intent === 'confirm' || result.transcript.toLowerCase().includes('better')) {
                     await Patient.findByIdAndUpdate(sessionData.patientId, {
                         status: 'active',
-                        notes: (sessionData.conversationContext?.patient?.notes || '') + '\nFollow-up: Patient confirmed feeling better via AI call.'
-                    });
-                }
-            } else if (sessionData.followUpId) {
-                const FollowUp = require('../models/FollowUp');
-                if (intent.intent === 'confirm' || result.transcript.toLowerCase().includes('better')) {
-                    await FollowUp.findByIdAndUpdate(sessionData.followUpId, {
-                        status: 'completed',
-                        notes: 'Patient confirmed feeling better via AI call.'
+                        $push: {
+                            notes: `Follow-up: Patient confirmed feeling better via AI call on ${new Date().toLocaleDateString()}`
+                        }
                     });
                 }
             }
 
         } catch (error) {
             logger.error('Error processing audio buffer', error);
+            sessionData.callState = CallState.LISTENING;
+            sessionData.llmInProgress = false;
         }
     }
 
     /**
      * Send audio response back to the call
      */
-    async sendAudioResponse(ws, text, sessionData) {
+    async sendAudioResponse(ws, text, audioBuffer, sessionData) {
         try {
-            // Convert text to speech
-            const audioBuffer = await aiConversationService.synthesizeSpeech(text);
+            logger.info('Sending AI audio response', {
+                textLength: text.length,
+                bufferSize: audioBuffer.length
+            });
 
-            // Convert to base64 and send to Twilio
+            // Convert to base64 mulaw
             const base64Audio = audioBuffer.toString('base64');
 
+            // Send via WebSocket media event
             ws.send(JSON.stringify({
                 event: 'media',
                 streamSid: sessionData.streamSid,
@@ -250,25 +285,22 @@ class MediaStreamHandler {
                 }
             }));
 
-            logger.info('AI response sent', { text });
+            logger.info('Audio sent to Twilio', { base64Length: base64Audio.length });
 
-            // Log AI response
-            const CallLog = require('../models/CallLog');
-            await CallLog.findOneAndUpdate(
-                { callId: sessionData.callSid },
-                {
-                    $push: {
-                        conversation: {
-                            speaker: 'ai',
-                            text: text,
-                            timestamp: new Date()
-                        }
-                    }
-                }
-            );
+            // Calculate playback duration (mulaw 8kHz = 1 byte per sample)
+            const durationMs = (audioBuffer.length / 8000) * 1000;
+
+            // Wait for TTS to finish playing before resuming listening
+            setTimeout(() => {
+                sessionData.callState = CallState.LISTENING;
+                sessionData.llmInProgress = false;
+                logger.info('AI finished speaking - State: LISTENING');
+            }, durationMs + 500); // Add 500ms buffer
 
         } catch (error) {
             logger.error('Error sending audio response', error);
+            sessionData.callState = CallState.LISTENING;
+            sessionData.llmInProgress = false;
         }
     }
 

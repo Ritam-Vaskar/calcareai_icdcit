@@ -55,7 +55,7 @@ class AIConversationService {
             const aiResponse = await this.generateResponse(transcript, conversationContext);
             logger.info('AI response generated', { response: aiResponse });
 
-            // 3. Text-to-Speech with Google Cloud
+            // 3. Text-to-Speech with Deepgram TTS
             const audioResponse = await this.synthesizeSpeech(aiResponse);
 
             return {
@@ -240,6 +240,8 @@ Respond naturally to what the patient says.`;
      */
     async synthesizeSpeech(text) {
         try {
+            logger.info('Starting TTS conversion', { textLength: text.length });
+
             // Use Deepgram's speak API for TTS
             const response = await this.deepgram.speak.request(
                 { text },
@@ -251,11 +253,16 @@ Respond naturally to what the patient says.`;
                 }
             );
 
+            logger.info('Deepgram TTS response received');
+
             // Get the audio stream
             const stream = await response.getStream();
             if (!stream) {
+                logger.error('No audio stream returned from Deepgram TTS');
                 throw new Error('No audio stream returned from Deepgram TTS');
             }
+
+            logger.info('Audio stream obtained, reading chunks...');
 
             // Convert stream to buffer
             const chunks = [];
@@ -267,10 +274,20 @@ Respond naturally to what the patient says.`;
                 chunks.push(value);
             }
 
-            return Buffer.concat(chunks);
+            const audioBuffer = Buffer.concat(chunks);
+            logger.info('TTS conversion complete', {
+                bufferSize: audioBuffer.length,
+                textConverted: text.substring(0, 50) + '...'
+            });
+
+            return audioBuffer;
         } catch (error) {
-            logger.error('Deepgram TTS error', error);
-            throw new Error('Failed to synthesize speech');
+            logger.error('Deepgram TTS error - Full details:', {
+                message: error.message,
+                stack: error.stack,
+                text: text
+            });
+            throw new Error('Failed to synthesize speech: ' + error.message);
         }
     }
 
