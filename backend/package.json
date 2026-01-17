@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "seed": "node utils/seedData.js"
+    "seed": "node utils/seedData.js",
+    "seed:conversations": "node utils/seedWithConversations.js"
   },
   "keywords": ["healthcare", "ai", "vapi", "voice-agent"],
   "author": "CareCall AI Team",

@@ -52,6 +52,59 @@ const patientSchema = new mongoose.Schema({
       enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
     }
   },
+  prescriptions: [{
+    date: {
+      type: Date,
+      default: Date.now
+    },
+    doctor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Doctor'
+    },
+    medications: [{
+      name: String,
+      dosage: String,
+      frequency: String,
+      duration: String,
+      instructions: String
+    }],
+    diagnosis: String,
+    notes: String
+  }],
+  medicalRecords: [{
+    date: {
+      type: Date,
+      default: Date.now
+    },
+    doctor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Doctor'
+    },
+    appointment: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Appointment'
+    },
+    type: {
+      type: String,
+      enum: ['consultation', 'lab-report', 'imaging', 'surgery', 'follow-up', 'emergency']
+    },
+    diagnosis: String,
+    symptoms: [String],
+    vitals: {
+      bloodPressure: String,
+      heartRate: Number,
+      temperature: Number,
+      weight: Number,
+      height: Number
+    },
+    treatment: String,
+    notes: String,
+    attachments: [{
+      name: String,
+      url: String,
+      type: String
+    }]
+  }],
   assignedDoctor: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Doctor'

@@ -54,12 +54,14 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/patients', require('./routes/patientRoutes'));
 app.use('/api/doctors', require('./routes/doctorRoutes'));
 app.use('/api/appointments', require('./routes/appointmentRoutes'));
 app.use('/api/calls', require('./routes/callLogRoutes'));
 app.use('/api/followups', require('./routes/followUpRoutes'));
 app.use('/api/webhooks', require('./routes/webhookRoutes'));
+app.use('/api/conversations', require('./routes/conversationRoutes'));
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -70,12 +72,14 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/health',
       auth: '/api/auth',
+      dashboard: '/api/dashboard',
       patients: '/api/patients',
       doctors: '/api/doctors',
       appointments: '/api/appointments',
       calls: '/api/calls',
       followups: '/api/followups',
-      webhooks: '/api/webhooks'
+      webhooks: '/api/webhooks',
+      conversations: '/api/conversations'
     }
   });
 });
